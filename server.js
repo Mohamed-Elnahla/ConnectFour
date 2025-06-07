@@ -65,29 +65,28 @@ io.on('connection', (socket) => {
                 });
             }
         }
-    });
-
-    // Handle rematch request
+    });    // Handle rematch request
     socket.on('requestRematch', ({ roomId }) => {
         const room = rooms[roomId];
         if (room) {
             const player = room.players.find(p => p.id === socket.id);
             if (player) {
                 if (!room.rematchRequests) {
-                    room.rematchRequests = [];
+                    room.rematchRequests = new Set();
                 }
                 
-                if (!room.rematchRequests.includes(socket.id)) {
-                    room.rematchRequests.push(socket.id);
+                if (!room.rematchRequests.has(socket.id)) {
+                    room.rematchRequests.add(socket.id);
                     
                     // Notify the other player about the rematch request
                     socket.to(roomId).emit('rematchRequested', { 
-                        playerName: player.name 
+                        playerName: player.name,
+                        playerNumber: player.playerNumber
                     });
                     
                     // If both players have requested rematch, start new game
-                    if (room.rematchRequests.length === 2) {
-                        room.rematchRequests = [];
+                    if (room.rematchRequests.size === 2) {
+                        room.rematchRequests.clear();
                         room.gameInProgress = true;
                         io.to(roomId).emit('rematchAccepted');
                     }
@@ -96,15 +95,32 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Handle declining rematch
-    socket.on('declineRematch', ({ roomId }) => {
+    // Handle rematch response
+    socket.on('respondToRematch', ({ roomId, accepted }) => {
         const room = rooms[roomId];
         if (room) {
-            room.rematchRequests = [];
-            socket.to(roomId).emit('rematchDeclined');
+            if (accepted) {
+                const player = room.players.find(p => p.id === socket.id);
+                if (player) {
+                    if (!room.rematchRequests) {
+                        room.rematchRequests = new Set();
+                    }
+                    
+                    room.rematchRequests.add(socket.id);
+                    
+                    // If both players have accepted, start new game
+                    if (room.rematchRequests.size === 2) {
+                        room.rematchRequests.clear();
+                        room.gameInProgress = true;
+                        io.to(roomId).emit('rematchAccepted');
+                    }
+                }
+            } else {
+                room.rematchRequests = new Set();
+                socket.to(roomId).emit('rematchDeclined');
+            }
         }
-    });
-      // Handle player disconnect
+    });    // Handle player disconnect
     socket.on('disconnect', () => {
         console.log(`User disconnected: ${socket.id}`);
         // Find which room the player was in and notify the other player

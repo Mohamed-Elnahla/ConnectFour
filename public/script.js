@@ -21,13 +21,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const createGameButton = document.getElementById('create-game-button');
     const joinForm = document.getElementById('join-form');
     const roomIdInput = document.getElementById('room-id-input');
-    const roomIdDisplay = document.getElementById('room-id-display');
-
-    // Online Game Elements
+    const roomIdDisplay = document.getElementById('room-id-display');    // Online Game Elements
     const onlineControls = document.getElementById('online-controls');
     const rematchButton = document.getElementById('rematch-button');
     const reactionButtons = document.querySelectorAll('.reaction-btn');
     const reactionOverlay = document.getElementById('reaction-overlay');
+
+    // Rematch Modal Elements
+    const rematchModal = document.getElementById('rematch-modal');
+    const rematchTitle = document.getElementById('rematch-title');
+    const rematchMessage = document.getElementById('rematch-message');
+    const acceptRematchBtn = document.getElementById('accept-rematch-btn');
+    const declineRematchBtn = document.getElementById('decline-rematch-btn');
 
     // --- Game Constants & State ---
     const ROWS = 6;
@@ -83,22 +88,32 @@ document.addEventListener('DOMContentLoaded', () => {
         if (gameMode === 'local') {
             startGame();
         }
-    });
-
-    // Rematch button event listener
+    });    // Rematch button event listener
     rematchButton.addEventListener('click', () => {
+        if (rematchButton.disabled) return; // Prevent multiple requests
         socket.emit('requestRematch', { roomId });
         rematchButton.textContent = 'Waiting for opponent...';
         rematchButton.disabled = true;
-    });
-
-    // Reaction buttons event listeners
+    });// Reaction buttons event listeners
     reactionButtons.forEach(button => {
         button.addEventListener('click', () => {
             const reaction = button.dataset.reaction;
             socket.emit('sendReaction', { roomId, reaction });
             showReactionFeedback(reaction, true);
         });
+    });
+
+    // Rematch modal event listeners
+    acceptRematchBtn.addEventListener('click', () => {
+        hideRematchModal();
+        socket.emit('respondToRematch', { roomId, accepted: true });
+        rematchButton.textContent = 'Waiting for opponent...';
+        rematchButton.disabled = true;
+    });
+
+    declineRematchBtn.addEventListener('click', () => {
+        hideRematchModal();
+        socket.emit('respondToRematch', { roomId, accepted: false });
     });// --- Socket.IO Event Handlers ---
     socket.on('gameCreated', (data) => {
         roomId = data.roomId;
@@ -121,14 +136,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const player2 = data.players.find(p => p.playerNumber === 2);
         
         if (playerNumber === 1) {
-            playerNames = { 1: "You", 2: player2.name };
+            playerNames = { 1: player1.name, 2: player2.name };
         } else {
-            playerNames = { 1: player1.name, 2: "You" };
+            playerNames = { 1: player1.name, 2: player2.name };
         }
         
         gameSetupModal.classList.remove('show');
         startGame();
-    });    socket.on('moveMade', (data) => {
+    });socket.on('moveMade', (data) => {
         if (!isMyTurn) {
             handleColumnClick(data.col, true);
         }
@@ -136,20 +151,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('reactionReceived', (data) => {
         showReactionFeedback(data.reaction, false, data.playerName);
-    });
-
-    socket.on('rematchRequested', (data) => {
-        showRematchRequest(data.playerName);
-    });
-
-    socket.on('rematchAccepted', () => {
+    });    socket.on('rematchRequested', (data) => {
+        showRematchModal(data.playerName);
+    });    socket.on('rematchAccepted', () => {
+        hideRematchModal();
         hideRematchUI();
         startGame();
-    });
-
-    socket.on('rematchDeclined', () => {
+    });    socket.on('rematchDeclined', () => {
+        hideRematchModal();
         hideRematchUI();
-        alert('Opponent declined the rematch.');
+        // Show a non-blocking notification instead of alert
+        showNotification('Opponent declined the rematch.', 'info');
     });
     
     socket.on('opponentDisconnected', () => {
@@ -268,15 +280,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function switchPlayer() {
         currentPlayer = currentPlayer === 1 ? 2 : 1;
         updateTurnDisplay();
-    }
-
-    function updateTurnDisplay() {
+    }    function updateTurnDisplay() {
         if (gameOver) return;
         if (gameMode === 'online') {
-            turnDisplay.textContent = isMyTurn ? "Your Turn" : "Opponent's Turn";
+            const currentPlayerName = playerNames[currentPlayer];
+            const isCurrentPlayerMe = (currentPlayer === playerNumber);
+            turnDisplay.textContent = isCurrentPlayerMe ? `Your Turn (${currentPlayerName})` : `${currentPlayerName}'s Turn`;
             const myColor = playerNumber === 1 ? 'var(--player1-color)' : 'var(--player2-color)';
             const opponentColor = playerNumber === 1 ? 'var(--player2-color)' : 'var(--player1-color)';
-            turnDisplay.style.color = isMyTurn ? myColor : opponentColor;
+            turnDisplay.style.color = isCurrentPlayerMe ? myColor : opponentColor;
         } else {
             turnDisplay.textContent = `${playerNames[currentPlayer]}'s Turn`;
             turnDisplay.style.color = currentPlayer === 1 ? 'var(--player1-color)' : 'var(--player2-color)';
@@ -352,7 +364,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (winner) {
             let winnerText;
             if (gameMode === 'online') {
-                winnerText = (winner === playerNumber) ? "You Win! 🎉" : "Opponent Wins 😞";
+                const winnerName = playerNames[winner];
+                const isWinnerMe = (winner === playerNumber);
+                winnerText = isWinnerMe ? `You Win! 🎉 (${winnerName})` : `${winnerName} Wins! 😞`;
             } else {
                 winnerText = `${playerNames[winner]} Wins! 🎉`;
             }
@@ -423,16 +437,44 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
             reactionElement.remove();
         }, 2000);
+    }    // --- Rematch System Functions ---
+    function showRematchModal(playerName) {
+        rematchTitle.textContent = 'Rematch Request';
+        rematchMessage.textContent = `${playerName} wants to play again!`;
+        rematchModal.classList.add('show');
     }
 
-    // --- Rematch System Functions ---
-    function showRematchRequest(playerName) {
-        const confirmRematch = confirm(`${playerName} wants to play again. Do you accept?`);
-        if (confirmRematch) {
-            socket.emit('requestRematch', { roomId });
-        } else {
-            socket.emit('declineRematch', { roomId });
-        }
+    function hideRematchModal() {
+        rematchModal.classList.remove('show');
+    }
+
+    function showNotification(message, type = 'info') {
+        // Create a simple notification system
+        const notification = document.createElement('div');
+        notification.classList.add('notification', `notification-${type}`);
+        notification.textContent = message;
+        
+        // Style the notification
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: ${type === 'info' ? '#3498db' : '#e74c3c'};
+            color: white;
+            padding: 15px 20px;
+            border-radius: 5px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 10000;
+            animation: slideIn 0.3s ease;
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Auto remove after 3 seconds
+        setTimeout(() => {
+            notification.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
     }
 
     function hideRematchUI() {
