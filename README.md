@@ -158,6 +158,61 @@ To play across devices on the same network:
 
 ### Cloud Deployment
 
+#### 🚀 Render.com (Recommended)
+Render.com is perfect for hosting Node.js applications with WebSocket support. It's free for hobby projects and provides automatic SSL certificates.
+
+**Step-by-Step Deployment:**
+
+1. **Prepare Your Repository**
+   - Ensure your code is pushed to GitHub, GitLab, or Bitbucket
+   - Make sure `package.json` includes the start script:
+     ```json
+     {
+       "scripts": {
+         "start": "node server.js"
+       }
+     }
+     ```
+
+2. **Deploy on Render**
+   - Visit [render.com](https://render.com) and sign up/login
+   - Click "New +" → "Web Service"
+   - Connect your GitHub/GitLab account
+   - Select your Connect Four repository
+
+3. **Configure the Service**
+   ```
+   Name: connect-four-pro (or your preferred name)
+   Region: Choose closest to your users
+   Branch: main (or your default branch)
+   Runtime: Node
+   Build Command: npm install
+   Start Command: npm start
+   ```
+
+4. **Environment Variables** (if needed)
+   ```
+   NODE_ENV=production
+   PORT=10000 (Render automatically sets this)
+   ```
+
+5. **Deploy**
+   - Click "Create Web Service"
+   - Render will automatically build and deploy your app
+   - You'll get a free `.onrender.com` URL
+
+**Your app will be available at:** `https://your-app-name.onrender.com`
+
+**Render.com Benefits:**
+- ✅ Free tier available (hobby projects)
+- ✅ Automatic SSL certificates
+- ✅ WebSocket support (perfect for Socket.IO)
+- ✅ Automatic deployments on git push
+- ✅ Custom domains supported
+- ✅ Built-in monitoring and logs
+
+> 📖 **Detailed Guide**: See [RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md) for complete step-by-step instructions with screenshots and troubleshooting tips.
+
 #### Heroku
 ```bash
 # Install Heroku CLI
@@ -171,11 +226,11 @@ heroku create your-connect-four-app
 git push heroku main
 ```
 
-#### Netlify/Vercel
-For static hosting, you'll need to modify the app to use a hosted Socket.IO service like:
-- Socket.IO Cloud
-- Pusher
-- Ably
+#### Railway
+1. Visit [railway.app](https://railway.app)
+2. Connect GitHub and select repository
+3. Railway auto-detects Node.js and deploys
+4. Automatic SSL and custom domains available
 
 #### VPS/Cloud Server
 ```bash
