@@ -1,0 +1,267 @@
+:root {
+    --board-bg: #0077b6;
+    --cell-bg: #035397;
+    --player1-color: #d00000;
+    --player2-color: #ffba08;
+    --font-family: 'Poppins', sans-serif;
+    --text-color: #f8f9fa;
+    --shadow-color: rgba(0, 0, 0, 0.2);
+    --win-glow-color: gold;
+    --line-color: #ffffff;
+}
+
+body {
+    margin: 0;
+    font-family: var(--font-family);
+    background-color: #e9ecef;
+    color: #343a40;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 1rem;
+    box-sizing: border-box;
+}
+
+.app-container {
+    text-align: center;
+}
+
+h1 {
+    font-size: 3rem;
+    color: var(--board-bg);
+    margin-bottom: 0.5rem;
+}
+
+#game-info {
+    height: 3rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#turn-display {
+    font-size: 1.5rem;
+    font-weight: 600;
+    transition: color 0.3s ease, transform 0.3s ease;
+}
+
+#turn-display.game-over {
+    transform: scale(1.15);
+    font-weight: 700;
+}
+
+#game-board {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 10px;
+    background-color: var(--board-bg);
+    padding: 10px;
+    border-radius: 20px;
+    box-shadow: 0 10px 20px var(--shadow-color);
+    position: relative;
+    width: 90vw;
+    max-width: 700px;
+    aspect-ratio: 7 / 6; 
+}
+
+#win-line-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.win-line {
+    position: absolute;
+    background-color: var(--line-color);
+    height: 12px;
+    border-radius: 6px;
+    box-shadow: 0 0 15px 2px rgba(0,0,0,0.5);
+    transform-origin: left center;
+    transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+    transform: scaleX(0);
+}
+
+.column {
+    display: grid;
+    grid-template-rows: repeat(6, 1fr);
+    gap: 10px;
+    cursor: pointer;
+    border-radius: 10px;
+    transition: background-color 0.2s ease;
+}
+
+.column.full {
+    cursor: not-allowed;
+}
+
+.column:not(.full):hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.cell {
+    background-color: var(--cell-bg);
+    border-radius: 50%;
+    position: relative;
+}
+
+.piece {
+    width: 90%;
+    height: 90%;
+    border-radius: 50%;
+    position: absolute;
+    top: 5%;
+    left: 5%;
+    transform: translateY(-500px);
+    animation: drop 0.5s ease-out forwards;
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+}
+
+.winning-piece {
+    transform: scale(1.1);
+    box-shadow: 0 0 20px 5px var(--win-glow-color);
+    z-index: 10;
+}
+
+.player1 {
+    /* CORRECTED THIS LINE: Removed the underscore from the hex code */
+    background: radial-gradient(circle at 30% 30%, #ff4d4d, var(--player1-color));
+    box-shadow: 0 4px 6px rgba(0,0,0,0.4) inset, 0 2px 2px rgba(255,255,255,0.5);
+}
+
+.player2 {
+    background: radial-gradient(circle at 30% 30%, #ffd65c, var(--player2-color));
+    box-shadow: 0 4px 6px rgba(0,0,0,0.4) inset, 0 2px 2px rgba(255,255,255,0.5);
+}
+
+@keyframes drop {
+    to {
+        transform: translateY(0);
+    }
+}
+
+#restart-button {
+    margin-top: 1.5rem;
+    padding: 0.8rem 1.5rem;
+    font-size: 1.2rem;
+    font-family: var(--font-family);
+    font-weight: 600;
+    border-radius: 10px;
+    border: none;
+    background-color: var(--board-bg);
+    color: var(--text-color);
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.3s ease;
+    box-shadow: 0 4px 10px var(--shadow-color);
+    opacity: 1;
+}
+
+#restart-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px var(--shadow-color);
+}
+
+#restart-button.hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(10px);
+}
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.modal-overlay.show {
+    display: flex;
+    opacity: 1;
+}
+
+.modal-content {
+    background: white;
+    padding: 2rem 3rem;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    text-align: left;
+    max-width: 400px;
+    width: 90%;
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+
+.modal-overlay.show .modal-content {
+    transform: scale(1);
+}
+
+.modal-content h2 {
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+}
+
+.input-group {
+    margin-bottom: 1rem;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.input-group input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 1rem;
+    box-sizing: border-box;
+}
+
+.modal-content button {
+    width: 100%;
+    padding: 0.8rem;
+    font-size: 1.1rem;
+    background-color: var(--board-bg);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.modal-content button:hover {
+    background-color: #005f8d;
+}
+
+@media (max-width: 600px) {
+    h1 {
+        font-size: 2rem;
+    }
+    #turn-display {
+        font-size: 1.2rem;
+    }
+    #game-board {
+        gap: 5px;
+        padding: 5px;
+    }
+    .win-line {
+        height: 8px;
+        border-radius: 4px;
+    }
+}

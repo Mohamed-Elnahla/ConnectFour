@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Connect Four</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <!-- Modal for player name input -->
+    <div id="name-modal" class="modal-overlay show">
+        <div class="modal-content">
+            <h2>Enter Player Names</h2>
+            <form id="name-form">
+                <div class="input-group">
+                    <label for="player1-name">Player 1 (Red)</label>
+                    <input type="text" id="player1-name" value="Player 1" required>
+                </div>
+                <div class="input-group">
+                    <label for="player2-name">Player 2 (Yellow)</label>
+                    <input type="text" id="player2-name" value="Player 2" required>
+                </div>
+                <button type="submit">Start Game</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <h1>Connect Four</h1>
+        <div id="game-info">
+            <h2 id="turn-display"></h2>
+        </div>
+        <div id="game-board">
+            <!-- This container will hold the dynamically created winning line -->
+            <div id="win-line-container"></div>
+        </div>
+        <button id="restart-button" class="hidden">Play Again</button>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
