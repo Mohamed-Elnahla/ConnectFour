@@ -7,8 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const winLineContainer = document.getElementById('win-line-container');
     const turnDisplay = document.getElementById('turn-display');
     const restartButton = document.getElementById('restart-button');
-    
-    // Modal & Lobby Elements
+      // Modal & Lobby Elements
     const gameSetupModal = document.getElementById('game-setup-modal');
     const modeSelection = document.getElementById('mode-selection');
     const nameInputSection = document.getElementById('name-input-section');
@@ -18,10 +17,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const nameForm = document.getElementById('name-form');
     const player1NameInput = document.getElementById('player1-name');
     const player2NameInput = document.getElementById('player2-name');
+    const onlinePlayerNameInput = document.getElementById('online-player-name');
     const createGameButton = document.getElementById('create-game-button');
     const joinForm = document.getElementById('join-form');
     const roomIdInput = document.getElementById('room-id-input');
     const roomIdDisplay = document.getElementById('room-id-display');
+
+    // Online Game Elements
+    const onlineControls = document.getElementById('online-controls');
+    const rematchButton = document.getElementById('rematch-button');
+    const reactionButtons = document.querySelectorAll('.reaction-btn');
+    const reactionOverlay = document.getElementById('reaction-overlay');
 
     // --- Game Constants & State ---
     const ROWS = 6;
@@ -57,27 +63,43 @@ document.addEventListener('DOMContentLoaded', () => {
         gameSetupModal.classList.remove('show');
         startGame();
     });    createGameButton.addEventListener('click', () => {
+        const playerName = onlinePlayerNameInput.value.trim() || 'Player';
         createGameButton.disabled = true;
         createGameButton.classList.add('btn-loading');
-        socket.emit('createGame');
+        socket.emit('createGame', { playerName });
     });
 
     joinForm.addEventListener('submit', (e) => {
         e.preventDefault();
         roomId = roomIdInput.value.trim();
+        const playerName = onlinePlayerNameInput.value.trim() || 'Player';
         if (roomId) {
             const joinButton = joinForm.querySelector('button[type="submit"]');
             joinButton.disabled = true;
             joinButton.classList.add('btn-loading');
-            socket.emit('joinGame', { roomId });
+            socket.emit('joinGame', { roomId, playerName });
         }
-    });
-
-    restartButton.addEventListener('click', () => {
+    });    restartButton.addEventListener('click', () => {
         if (gameMode === 'local') {
             startGame();
         }
-    });    // --- Socket.IO Event Handlers ---
+    });
+
+    // Rematch button event listener
+    rematchButton.addEventListener('click', () => {
+        socket.emit('requestRematch', { roomId });
+        rematchButton.textContent = 'Waiting for opponent...';
+        rematchButton.disabled = true;
+    });
+
+    // Reaction buttons event listeners
+    reactionButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const reaction = button.dataset.reaction;
+            socket.emit('sendReaction', { roomId, reaction });
+            showReactionFeedback(reaction, true);
+        });
+    });// --- Socket.IO Event Handlers ---
     socket.on('gameCreated', (data) => {
         roomId = data.roomId;
         playerNumber = 1;
@@ -89,21 +111,45 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset button state
         createGameButton.disabled = false;
         createGameButton.classList.remove('btn-loading');
-    });
-
-    socket.on('gameStarted', () => {
+    });    socket.on('gameStarted', (data) => {
         if (!playerNumber) {
             playerNumber = 2;
-            playerNames = { 1: "Opponent", 2: "You" };
         }
+        
+        // Set player names from server data
+        const player1 = data.players.find(p => p.playerNumber === 1);
+        const player2 = data.players.find(p => p.playerNumber === 2);
+        
+        if (playerNumber === 1) {
+            playerNames = { 1: "You", 2: player2.name };
+        } else {
+            playerNames = { 1: player1.name, 2: "You" };
+        }
+        
         gameSetupModal.classList.remove('show');
         startGame();
-    });
-
-    socket.on('moveMade', (data) => {
+    });    socket.on('moveMade', (data) => {
         if (!isMyTurn) {
             handleColumnClick(data.col, true);
         }
+    });
+
+    socket.on('reactionReceived', (data) => {
+        showReactionFeedback(data.reaction, false, data.playerName);
+    });
+
+    socket.on('rematchRequested', (data) => {
+        showRematchRequest(data.playerName);
+    });
+
+    socket.on('rematchAccepted', () => {
+        hideRematchUI();
+        startGame();
+    });
+
+    socket.on('rematchDeclined', () => {
+        hideRematchUI();
+        alert('Opponent declined the rematch.');
     });
     
     socket.on('opponentDisconnected', () => {
@@ -126,8 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (joinButton) {
             joinButton.disabled = false;
             joinButton.classList.remove('btn-loading');
-        }
-    });
+        }    });
 
     // --- Core Game Functions ---
     function startGame() {
@@ -139,9 +184,17 @@ document.addEventListener('DOMContentLoaded', () => {
         turnDisplay.classList.remove('game-over');
         restartButton.classList.add('hidden');
 
-        createBoard();
+        // Show/hide appropriate controls based on game mode
+        if (gameMode === 'online') {
+            onlineControls.classList.remove('hidden');
+            rematchButton.classList.add('hidden');
+        } else {
+            onlineControls.classList.add('hidden');
+        }        createBoard();
         updateTurnDisplay();
-    }    function createBoard() {
+    }
+
+    function createBoard() {
         // Clear previous game artifacts
         boardElement.querySelectorAll('.column').forEach(col => col.remove());
         winLineContainer.innerHTML = '';
@@ -293,9 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function isBoardFull() {
         return board.every(row => row.every(cell => cell !== 0));
-    }
-
-    function endGame(winner) {
+    }    function endGame(winner) {
         gameOver = true;
         turnDisplay.classList.add('game-over');
         if (winner) {
@@ -314,6 +365,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (gameMode === 'local') {
             restartButton.classList.remove('hidden');
+        } else if (gameMode === 'online') {
+            showRematchButton();
         }
     }
 
@@ -330,9 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
-    }
-
-    // Debug function to log column states (can be removed in production)
+    }    // Debug function to log column states (can be removed in production)
     function debugColumnStates() {
         console.log('Column states:');
         for (let c = 0; c < COLS; c++) {
@@ -340,6 +391,60 @@ document.addEventListener('DOMContentLoaded', () => {
             const isFull = column?.classList.contains('full');
             const availableRow = findAvailableRow(c);
             console.log(`Column ${c}: Full=${isFull}, AvailableRow=${availableRow}`);
+        }
+    }
+
+    // --- Reaction System Functions ---
+    function showReactionFeedback(reaction, isOwnReaction, playerName = '') {
+        const reactionElement = document.createElement('div');
+        reactionElement.classList.add('reaction-feedback');
+        reactionElement.textContent = reaction;
+        
+        if (isOwnReaction) {
+            reactionElement.classList.add('own-reaction');
+        } else {
+            reactionElement.classList.add('opponent-reaction');
+            reactionElement.title = `${playerName} reacted`;
+        }
+        
+        // Position randomly in the reaction overlay
+        const x = Math.random() * 80 + 10; // 10-90% from left
+        const y = Math.random() * 60 + 20; // 20-80% from top
+        reactionElement.style.left = `${x}%`;
+        reactionElement.style.top = `${y}%`;
+        
+        reactionOverlay.appendChild(reactionElement);
+        
+        // Animate and remove
+        setTimeout(() => {
+            reactionElement.classList.add('animate');
+        }, 50);
+        
+        setTimeout(() => {
+            reactionElement.remove();
+        }, 2000);
+    }
+
+    // --- Rematch System Functions ---
+    function showRematchRequest(playerName) {
+        const confirmRematch = confirm(`${playerName} wants to play again. Do you accept?`);
+        if (confirmRematch) {
+            socket.emit('requestRematch', { roomId });
+        } else {
+            socket.emit('declineRematch', { roomId });
+        }
+    }
+
+    function hideRematchUI() {
+        rematchButton.textContent = '🔄 Play Again';
+        rematchButton.disabled = false;
+        rematchButton.classList.add('hidden');
+    }
+
+    // Show rematch button when game ends (for online games)
+    function showRematchButton() {
+        if (gameMode === 'online') {
+            rematchButton.classList.remove('hidden');
         }
     }
 });

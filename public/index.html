@@ -65,10 +65,16 @@
                     </button>
                 </form>
             </div>
-            
-            <div id="online-lobby" class="hidden">
+              <div id="online-lobby" class="hidden">
                 <h2>Online Lobby</h2>
                 <div class="lobby-content">
+                    <div id="online-name-input" class="name-input-section">
+                        <div class="input-group">
+                            <label for="online-player-name">Your Name</label>
+                            <input type="text" id="online-player-name" placeholder="Enter your name" value="Player" required>
+                        </div>
+                    </div>
+                    
                     <button id="create-game-button" class="btn btn-primary">
                         <span class="btn-icon">➕</span>
                         Create New Game
@@ -109,8 +115,7 @@
                 <span class="game-icon">🟡</span>
             </h1>
         </header>
-        
-        <main class="game-main">
+          <main class="game-main">
             <div id="game-info" class="game-status">
                 <h2 id="turn-display" class="turn-indicator"></h2>
                 <div id="game-controls" class="game-controls">
@@ -118,8 +123,24 @@
                         <span class="btn-icon">🔄</span>
                         New Game
                     </button>
+                    <div id="online-controls" class="online-controls hidden">
+                        <button id="rematch-button" class="btn btn-primary hidden">
+                            <span class="btn-icon">🔄</span>
+                            Play Again
+                        </button>
+                        <div id="reactions" class="reactions">
+                            <button class="reaction-btn" data-reaction="👍">👍</button>
+                            <button class="reaction-btn" data-reaction="👎">👎</button>
+                            <button class="reaction-btn" data-reaction="😄">😄</button>
+                            <button class="reaction-btn" data-reaction="😮">😮</button>
+                            <button class="reaction-btn" data-reaction="🔥">🔥</button>
+                            <button class="reaction-btn" data-reaction="💪">💪</button>
+                        </div>
+                    </div>
                 </div>
             </div>
+            
+            <div id="reaction-overlay" class="reaction-overlay"></div>
             
             <div id="game-board" class="game-board">
                 <div id="win-line-container" class="win-line-container"></div>
