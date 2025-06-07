@@ -1,0 +1,305 @@
+document.addEventListener('DOMContentLoaded', () => {
+    // --- Socket.IO Client Setup ---
+    const socket = io();
+
+    // --- DOM Elements ---
+    const boardElement = document.getElementById('game-board');
+    const winLineContainer = document.getElementById('win-line-container');
+    const turnDisplay = document.getElementById('turn-display');
+    const restartButton = document.getElementById('restart-button');
+    
+    // Modal & Lobby Elements
+    const gameSetupModal = document.getElementById('game-setup-modal');
+    const modeSelection = document.getElementById('mode-selection');
+    const nameInputSection = document.getElementById('name-input-section');
+    const onlineLobby = document.getElementById('online-lobby');
+    const playLocalButton = document.getElementById('play-local-button');
+    const playOnlineButton = document.getElementById('play-online-button');
+    const nameForm = document.getElementById('name-form');
+    const player1NameInput = document.getElementById('player1-name');
+    const player2NameInput = document.getElementById('player2-name');
+    const createGameButton = document.getElementById('create-game-button');
+    const joinForm = document.getElementById('join-form');
+    const roomIdInput = document.getElementById('room-id-input');
+    const roomIdDisplay = document.getElementById('room-id-display');
+
+    // --- Game Constants & State ---
+    const ROWS = 6;
+    const COLS = 7;
+    let board = [];
+    let currentPlayer;
+    let gameOver = false;
+    let playerNames = { 1: 'Player 1', 2: 'Player 2' };
+
+    // -- Online Game State --
+    let gameMode = 'local';
+    let playerNumber;
+    let roomId;
+    let isMyTurn;
+
+    // --- Event Listeners ---
+    playLocalButton.addEventListener('click', () => {
+        gameMode = 'local';
+        modeSelection.classList.add('hidden');
+        nameInputSection.classList.remove('hidden');
+    });
+
+    playOnlineButton.addEventListener('click', () => {
+        gameMode = 'online';
+        modeSelection.classList.add('hidden');
+        onlineLobby.classList.remove('hidden');
+    });
+
+    nameForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        playerNames[1] = player1NameInput.value.trim() || 'Player 1';
+        playerNames[2] = player2NameInput.value.trim() || 'Player 2';
+        gameSetupModal.classList.remove('show');
+        startGame();
+    });
+
+    createGameButton.addEventListener('click', () => {
+        socket.emit('createGame');
+    });
+
+    joinForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        roomId = roomIdInput.value.trim();
+        if (roomId) {
+            socket.emit('joinGame', { roomId });
+        }
+    });
+
+    restartButton.addEventListener('click', () => {
+        if (gameMode === 'local') {
+            startGame();
+        }
+    });
+
+    // --- Socket.IO Event Handlers ---
+    socket.on('gameCreated', (data) => {
+        roomId = data.roomId;
+        playerNumber = 1;
+        playerNames = { 1: "You", 2: "Opponent" };
+        roomIdDisplay.querySelector('strong').textContent = roomId;
+        roomIdDisplay.classList.remove('hidden');
+        onlineLobby.querySelector('h2').textContent = "Game Created!";
+    });
+
+    socket.on('gameStarted', () => {
+        if (!playerNumber) {
+            playerNumber = 2;
+            playerNames = { 1: "Opponent", 2: "You" };
+        }
+        gameSetupModal.classList.remove('show');
+        startGame();
+    });
+
+    socket.on('moveMade', (data) => {
+        if (!isMyTurn) {
+            handleColumnClick(data.col, true);
+        }
+    });
+    
+    socket.on('opponentDisconnected', () => {
+        if (!gameOver) {
+            alert('Your opponent has disconnected.');
+            turnDisplay.textContent = "You Win!";
+            turnDisplay.classList.add('game-over');
+            gameOver = true;
+        }
+    });
+
+    socket.on('error', (message) => {
+        alert(`Error: ${message}`);
+        roomIdInput.value = '';
+    });
+
+    // --- Core Game Functions ---
+    function startGame() {
+        gameOver = false;
+        currentPlayer = 1;
+        isMyTurn = (gameMode === 'local' || playerNumber === 1);
+        board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+        
+        turnDisplay.classList.remove('game-over');
+        restartButton.classList.add('hidden');
+
+        createBoard();
+        updateTurnDisplay();
+    }
+
+    function createBoard() {
+        // Clear previous game artifacts
+        boardElement.querySelectorAll('.column').forEach(col => col.remove());
+        winLineContainer.innerHTML = '';
+
+        for (let c = 0; c < COLS; c++) {
+            const column = document.createElement('div');
+            column.classList.add('column');
+            column.dataset.col = c;
+            column.addEventListener('click', () => handleColumnClick(c));
+
+            for (let r = 0; r < ROWS; r++) {
+                const cell = document.createElement('div');
+                cell.classList.add('cell');
+                cell.dataset.row = r;
+                cell.dataset.col = c;
+                column.appendChild(cell);
+            }
+            boardElement.prepend(column);
+        }
+    }
+
+    function handleColumnClick(col, fromOpponent = false) {
+        if (gameOver) return;
+        if (gameMode === 'online' && !isMyTurn && !fromOpponent) return;
+
+        const row = findAvailableRow(col);
+        if (row === -1) return;
+
+        if (gameMode === 'online' && isMyTurn) {
+            socket.emit('makeMove', { roomId, col });
+        }
+
+        board[row][col] = currentPlayer;
+        placePiece(row, col);
+
+        const winningLine = checkForWin(row, col);
+        if (winningLine) {
+            gameOver = true;
+            highlightWinningPieces(winningLine);
+            setTimeout(() => endGame(currentPlayer), 500);
+        } else if (isBoardFull()) {
+            gameOver = true;
+            setTimeout(() => endGame(null), 500);
+        } else {
+            if(gameMode === 'online') isMyTurn = !isMyTurn;
+            switchPlayer();
+        }
+    }
+
+    function findAvailableRow(col) {
+        for (let r = ROWS - 1; r >= 0; r--) {
+            if (board[r][col] === 0) return r;
+        }
+        return -1;
+    }
+
+    /**
+     * CORRECTED: Now uses a reliable data-attribute selector.
+     */
+    function placePiece(row, col) {
+        const piece = document.createElement('div');
+        piece.classList.add('piece', currentPlayer === 1 ? 'player1' : 'player2');
+        const targetCell = boardElement.querySelector(`.cell[data-row='${row}'][data-col='${col}']`);
+        if (targetCell) {
+            targetCell.appendChild(piece);
+        }
+    }
+
+    function switchPlayer() {
+        currentPlayer = currentPlayer === 1 ? 2 : 1;
+        updateTurnDisplay();
+    }
+
+    function updateTurnDisplay() {
+        if (gameOver) return;
+        if (gameMode === 'online') {
+            turnDisplay.textContent = isMyTurn ? "Your Turn" : "Opponent's Turn";
+            const myColor = playerNumber === 1 ? 'var(--player1-color)' : 'var(--player2-color)';
+            const opponentColor = playerNumber === 1 ? 'var(--player2-color)' : 'var(--player1-color)';
+            turnDisplay.style.color = isMyTurn ? myColor : opponentColor;
+        } else {
+            turnDisplay.textContent = `${playerNames[currentPlayer]}'s Turn`;
+            turnDisplay.style.color = currentPlayer === 1 ? 'var(--player1-color)' : 'var(--player2-color)';
+        }
+    }
+    
+    function checkForWin(row, col) {
+        const player = currentPlayer;
+        const directions = [{ dr: 0, dc: 1 }, { dr: 1, dc: 0 }, { dr: 1, dc: 1 }, { dr: 1, dc: -1 }];
+        for (const { dr, dc } of directions) {
+            const line = [{ row, col }];
+            for (let i = 1; i < 4; i++) { const r = row + i * dr, c = col + i * dc; if (r >= 0 && r < ROWS && c >= 0 && c < COLS && board[r][c] === player) { line.push({ row: r, col: c }); } else break; }
+            for (let i = 1; i < 4; i++) { const r = row - i * dr, c = col - i * dc; if (r >= 0 && r < ROWS && c >= 0 && c < COLS && board[r][c] === player) { line.push({ row: r, col: c }); } else break; }
+            if (line.length >= 4) return line;
+        }
+        return null;
+    }
+    
+    /**
+     * CORRECTED: Now uses a reliable data-attribute selector.
+     */
+    function highlightWinningPieces(winningLine) {
+        for (const { row, col } of winningLine) {
+            const cell = boardElement.querySelector(`.cell[data-row='${row}'][data-col='${col}']`);
+            cell?.querySelector('.piece')?.classList.add('winning-piece');
+        }
+        drawWinningLine(winningLine);
+    }
+    
+    /**
+     * CORRECTED: Now uses a reliable data-attribute selector.
+     */
+    function drawWinningLine(winningLine) {
+        winningLine.sort((a, b) => (a.row - b.row) || (a.col - b.col));
+        const startPiece = winningLine[0];
+        const endPiece = winningLine[winningLine.length - 1];
+
+        const startCell = boardElement.querySelector(`.cell[data-row='${startPiece.row}'][data-col='${startPiece.col}']`);
+        const endCell = boardElement.querySelector(`.cell[data-row='${endPiece.row}'][data-col='${endPiece.col}']`);
+        
+        if (!startCell || !endCell) return;
+
+        const startRect = startCell.getBoundingClientRect();
+        const endRect = endCell.getBoundingClientRect();
+        const boardRect = boardElement.getBoundingClientRect();
+
+        const startX = startRect.left + startRect.width / 2 - boardRect.left;
+        const startY = startRect.top + startRect.height / 2 - boardRect.top;
+        const endX = endRect.left + endRect.width / 2 - boardRect.left;
+        const endY = endRect.top + endRect.height / 2 - boardRect.top;
+
+        const deltaX = endX - startX;
+        const deltaY = endY - startY;
+        const length = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        const angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+
+        const line = document.createElement('div');
+        line.classList.add('win-line');
+        line.style.width = `${length}px`;
+        line.style.left = `${startX}px`;
+        line.style.top = `${startY}px`;
+        line.style.transform = `rotate(${angle}deg)`;
+        winLineContainer.appendChild(line);
+
+        setTimeout(() => { line.style.transform = `rotate(${angle}deg) scaleX(1)`; }, 50);
+    }
+
+    function isBoardFull() {
+        return board.every(row => row.every(cell => cell !== 0));
+    }
+
+    function endGame(winner) {
+        gameOver = true;
+        turnDisplay.classList.add('game-over');
+        if (winner) {
+            let winnerText;
+            if (gameMode === 'online') {
+                winnerText = (winner === playerNumber) ? "You Win! 🎉" : "Opponent Wins 😞";
+            } else {
+                winnerText = `${playerNames[winner]} Wins! 🎉`;
+            }
+            turnDisplay.textContent = winnerText;
+            turnDisplay.style.color = winner === 1 ? 'var(--player1-color)' : 'var(--player2-color)';
+        } else {
+            turnDisplay.textContent = "It's a Draw! 🤝";
+            turnDisplay.style.color = '#343a40';
+        }
+
+        if (gameMode === 'local') {
+            restartButton.classList.remove('hidden');
+        }
+    }
+});

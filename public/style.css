@@ -1,3 +1,15 @@
+/* ... (Keep all existing styles from :root down to the .win-line) ... */
+:root {
+    --board-bg: #0077b6;
+    --cell-bg: #035397;
+    --player1-color: #d00000;
+    --player2-color: #ffba08;
+    --font-family: 'Poppins', sans-serif;
+    --text-color: #f8f9fa;
+    --shadow-color: rgba(0, 0, 0, 0.2);
+    --win-glow-color: gold;
+    --line-color: #ffffff;
+}
 :root {
     --board-bg: #0077b6;
     --cell-bg: #035397;
@@ -264,4 +276,120 @@ h1 {
         height: 8px;
         border-radius: 4px;
     }
+}
+/* Add/Modify these styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.modal-overlay.show {
+    display: flex;
+    opacity: 1;
+}
+
+.modal-content {
+    background: white;
+    padding: 2rem;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    text-align: center; /* Center content for new sections */
+    max-width: 400px;
+    width: 90%;
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+
+.modal-overlay.show .modal-content {
+    transform: scale(1);
+}
+
+.modal-content h2 {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+}
+
+/* Styles for new UI elements */
+#mode-selection button, #online-lobby button {
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+.or-divider {
+    margin: 1.5rem 0;
+    font-weight: 600;
+    color: #aaa;
+    position: relative;
+    text-align: center;
+}
+.or-divider::before, .or-divider::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 40%;
+    height: 1px;
+    background-color: #ccc;
+}
+.or-divider::before { left: 0; }
+.or-divider::after { right: 0; }
+
+#room-id-display {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background-color: #e9ecef;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    line-height: 1.5;
+}
+#room-id-display strong {
+    font-size: 1.5rem;
+    color: var(--board-bg);
+    letter-spacing: 2px;
+}
+
+.input-group {
+    text-align: left; /* Keep name inputs left-aligned */
+    margin-bottom: 1rem;
+}
+.input-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+.input-group input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 1rem;
+    box-sizing: border-box;
+}
+
+.modal-content button {
+    padding: 0.8rem;
+    font-size: 1.1rem;
+    background-color: var(--board-bg);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.modal-content button:hover {
+    background-color: #005f8d;
+}
+
+.hidden {
+    display: none !important;
 }

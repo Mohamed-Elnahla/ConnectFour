@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Connect Four</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- The modal remains the same -->
+    <div id="game-setup-modal" class="modal-overlay show">
+        <!-- ... all modal content is correct ... -->
+         <div class="modal-content">
+            <div id="mode-selection">
+                <h2>How do you want to play?</h2>
+                <button id="play-local-button">On This Device</button>
+                <button id="play-online-button">On Two Devices (Online)</button>
+            </div>
+            <div id="name-input-section" class="hidden">
+                <h2>Enter Player Names</h2>
+                <form id="name-form">
+                    <div class="input-group"><label for="player1-name">Player 1 (Red)</label><input type="text" id="player1-name" value="Player 1" required></div>
+                    <div class="input-group"><label for="player2-name">Player 2 (Yellow)</label><input type="text" id="player2-name" value="Player 2" required></div>
+                    <button type="submit">Start Game</button>
+                </form>
+            </div>
+            <div id="online-lobby" class="hidden">
+                <h2>Play Online</h2>
+                <button id="create-game-button">Create New Game</button>
+                <div class="or-divider">OR</div>
+                <form id="join-form">
+                    <div class="input-group"><label for="room-id-input">Enter Game Code</label><input type="text" id="room-id-input" placeholder="e.g., aB1cDe" required></div>
+                    <button type="submit">Join Game</button>
+                </form>
+                <div id="room-id-display" class="hidden">Waiting for opponent... <br> Share this code: <strong></strong></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <h1>Connect Four</h1>
+        <div id="game-info">
+            <h2 id="turn-display"></h2>
+        </div>
+        <!-- This is now a direct grid container for cells -->
+        <div id="game-board">
+            <div id="win-line-container"></div>
+        </div>
+        <button id="restart-button" class="hidden">Play Again</button>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
