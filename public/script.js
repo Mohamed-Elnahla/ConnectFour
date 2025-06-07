@@ -56,9 +56,9 @@ document.addEventListener('DOMContentLoaded', () => {
         playerNames[2] = player2NameInput.value.trim() || 'Player 2';
         gameSetupModal.classList.remove('show');
         startGame();
-    });
-
-    createGameButton.addEventListener('click', () => {
+    });    createGameButton.addEventListener('click', () => {
+        createGameButton.disabled = true;
+        createGameButton.classList.add('btn-loading');
         socket.emit('createGame');
     });
 
@@ -66,6 +66,9 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         roomId = roomIdInput.value.trim();
         if (roomId) {
+            const joinButton = joinForm.querySelector('button[type="submit"]');
+            joinButton.disabled = true;
+            joinButton.classList.add('btn-loading');
             socket.emit('joinGame', { roomId });
         }
     });
@@ -74,16 +77,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (gameMode === 'local') {
             startGame();
         }
-    });
-
-    // --- Socket.IO Event Handlers ---
+    });    // --- Socket.IO Event Handlers ---
     socket.on('gameCreated', (data) => {
         roomId = data.roomId;
         playerNumber = 1;
         playerNames = { 1: "You", 2: "Opponent" };
-        roomIdDisplay.querySelector('strong').textContent = roomId;
+        roomIdDisplay.querySelector('.code-value').textContent = roomId;
         roomIdDisplay.classList.remove('hidden');
         onlineLobby.querySelector('h2').textContent = "Game Created!";
+        
+        // Reset button state
+        createGameButton.disabled = false;
+        createGameButton.classList.remove('btn-loading');
     });
 
     socket.on('gameStarted', () => {
@@ -113,6 +118,15 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('error', (message) => {
         alert(`Error: ${message}`);
         roomIdInput.value = '';
+        
+        // Reset button states
+        createGameButton.disabled = false;
+        createGameButton.classList.remove('btn-loading');
+        const joinButton = joinForm.querySelector('button[type="submit"]');
+        if (joinButton) {
+            joinButton.disabled = false;
+            joinButton.classList.remove('btn-loading');
+        }
     });
 
     // --- Core Game Functions ---
@@ -127,9 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         createBoard();
         updateTurnDisplay();
-    }
-
-    function createBoard() {
+    }    function createBoard() {
         // Clear previous game artifacts
         boardElement.querySelectorAll('.column').forEach(col => col.remove());
         winLineContainer.innerHTML = '';
@@ -147,8 +159,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 cell.dataset.col = c;
                 column.appendChild(cell);
             }
-            boardElement.prepend(column);
+            boardElement.appendChild(column); // Changed from prepend to append
         }
+        updateColumnStates(); // Initialize column states
     }
 
     function handleColumnClick(col, fromOpponent = false) {
@@ -177,6 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if(gameMode === 'online') isMyTurn = !isMyTurn;
             switchPlayer();
         }
+        updateColumnStates();
     }
 
     function findAvailableRow(col) {
@@ -300,6 +314,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (gameMode === 'local') {
             restartButton.classList.remove('hidden');
+        }
+    }
+
+    function updateColumnStates() {
+        // Update column classes based on availability
+        for (let c = 0; c < COLS; c++) {
+            const column = boardElement.querySelector(`.column[data-col='${c}']`);
+            if (column) {
+                const row = findAvailableRow(c);
+                if (row === -1) {
+                    column.classList.add('full');
+                } else {
+                    column.classList.remove('full');
+                }
+            }
+        }
+    }
+
+    // Debug function to log column states (can be removed in production)
+    function debugColumnStates() {
+        console.log('Column states:');
+        for (let c = 0; c < COLS; c++) {
+            const column = boardElement.querySelector(`.column[data-col='${c}']`);
+            const isFull = column?.classList.contains('full');
+            const availableRow = findAvailableRow(c);
+            console.log(`Column ${c}: Full=${isFull}, AvailableRow=${availableRow}`);
         }
     }
 });

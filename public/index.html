@@ -3,53 +3,128 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Modern Connect Four</title>
+    <title>Connect Four Pro</title>
+    <meta name="description" content="Play Connect Four online with friends or locally on your device. Modern, responsive design with smooth animations.">
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔴</text></svg>">
 </head>
 <body>
-    <!-- The modal remains the same -->
-    <div id="game-setup-modal" class="modal-overlay show">
-        <!-- ... all modal content is correct ... -->
-         <div class="modal-content">
-            <div id="mode-selection">
-                <h2>How do you want to play?</h2>
-                <button id="play-local-button">On This Device</button>
-                <button id="play-online-button">On Two Devices (Online)</button>
+    <!-- The modal remains the same -->    <div id="game-setup-modal" class="modal-overlay show">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title">
+                    <span class="game-icon">🔴</span>
+                    Connect Four Pro
+                    <span class="game-icon">🟡</span>
+                </h1>
             </div>
+            
+            <div id="mode-selection" class="mode-selection">
+                <h2>Choose Your Game Mode</h2>
+                <div class="mode-buttons">
+                    <button id="play-local-button" class="btn btn-primary mode-btn">
+                        <span class="btn-icon">📱</span>
+                        <span class="btn-text">
+                            <strong>Local Play</strong>
+                            <small>Same device</small>
+                        </span>
+                    </button>
+                    <button id="play-online-button" class="btn btn-primary mode-btn">
+                        <span class="btn-icon">🌐</span>
+                        <span class="btn-text">
+                            <strong>Online Play</strong>
+                            <small>Two devices</small>
+                        </span>
+                    </button>
+                </div>
+            </div>
+            
             <div id="name-input-section" class="hidden">
-                <h2>Enter Player Names</h2>
-                <form id="name-form">
-                    <div class="input-group"><label for="player1-name">Player 1 (Red)</label><input type="text" id="player1-name" value="Player 1" required></div>
-                    <div class="input-group"><label for="player2-name">Player 2 (Yellow)</label><input type="text" id="player2-name" value="Player 2" required></div>
-                    <button type="submit">Start Game</button>
+                <h2>Player Setup</h2>
+                <form id="name-form" class="player-form">
+                    <div class="input-group">
+                        <label for="player1-name">
+                            <span class="player-color player1-color"></span>
+                            Player 1 (Red)
+                        </label>
+                        <input type="text" id="player1-name" value="Player 1" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="player2-name">
+                            <span class="player-color player2-color"></span>
+                            Player 2 (Yellow)
+                        </label>
+                        <input type="text" id="player2-name" value="Player 2" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <span class="btn-icon">🎮</span>
+                        Start Game
+                    </button>
                 </form>
             </div>
+            
             <div id="online-lobby" class="hidden">
-                <h2>Play Online</h2>
-                <button id="create-game-button">Create New Game</button>
-                <div class="or-divider">OR</div>
-                <form id="join-form">
-                    <div class="input-group"><label for="room-id-input">Enter Game Code</label><input type="text" id="room-id-input" placeholder="e.g., aB1cDe" required></div>
-                    <button type="submit">Join Game</button>
-                </form>
-                <div id="room-id-display" class="hidden">Waiting for opponent... <br> Share this code: <strong></strong></div>
+                <h2>Online Lobby</h2>
+                <div class="lobby-content">
+                    <button id="create-game-button" class="btn btn-primary">
+                        <span class="btn-icon">➕</span>
+                        Create New Game
+                    </button>
+                    
+                    <div class="or-divider">
+                        <span>OR</span>
+                    </div>
+                    
+                    <form id="join-form" class="join-form">
+                        <div class="input-group">
+                            <label for="room-id-input">Enter Game Code</label>
+                            <input type="text" id="room-id-input" placeholder="e.g., aB1cDe" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <span class="btn-icon">🔗</span>
+                            Join Game
+                        </button>
+                    </form>
+                    
+                    <div id="room-id-display" class="room-display hidden">
+                        <div class="waiting-message">
+                            <span class="loading-dots">Waiting for opponent</span>
+                        </div>
+                        <div class="room-code">
+                            <span class="code-label">Share this code:</span>
+                            <strong class="code-value"></strong>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
-
-    <div class="app-container">
-        <h1>Connect Four</h1>
-        <div id="game-info">
-            <h2 id="turn-display"></h2>
-        </div>
-        <!-- This is now a direct grid container for cells -->
-        <div id="game-board">
-            <div id="win-line-container"></div>
-        </div>
-        <button id="restart-button" class="hidden">Play Again</button>
+    </div><div class="app-container">
+        <header class="game-header">
+            <h1>
+                <span class="game-icon">🔴</span>
+                Connect Four Pro
+                <span class="game-icon">🟡</span>
+            </h1>
+        </header>
+        
+        <main class="game-main">
+            <div id="game-info" class="game-status">
+                <h2 id="turn-display" class="turn-indicator"></h2>
+                <div id="game-controls" class="game-controls">
+                    <button id="restart-button" class="btn btn-secondary hidden">
+                        <span class="btn-icon">🔄</span>
+                        New Game
+                    </button>
+                </div>
+            </div>
+            
+            <div id="game-board" class="game-board">
+                <div id="win-line-container" class="win-line-container"></div>
+            </div>
+        </main>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>

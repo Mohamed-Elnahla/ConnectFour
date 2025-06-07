@@ -1,15 +1,46 @@
 {
-  "name": "connect-four-online",
-  "version": "1.0.0",
-  "description": "",
+  "name": "connect-four-pro",
+  "version": "2.0.0",
+  "description": "A modern, responsive Connect Four game with real-time multiplayer support. Play locally or online across devices with a beautiful, mobile-friendly interface.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "nodemon server.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "echo \"No linter configured\"",
+    "build": "echo \"No build process needed for vanilla JS\""
+  },
+  "keywords": [
+    "connect-four",
+    "game",
+    "multiplayer",
+    "socket.io",
+    "real-time",
+    "mobile",
+    "responsive",
+    "nodejs",
+    "express"
+  ],
+  "author": "Your Name <your.email@example.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/connect-four-pro.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/connect-four-pro/issues"
+  },
+  "homepage": "https://github.com/yourusername/connect-four-pro#readme",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=7.0.0"
   },
   "dependencies": {
     "express": "^4.18.2",
     "nanoid": "^3.3.4",
     "socket.io": "^4.5.4"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.20"
   }
 }
