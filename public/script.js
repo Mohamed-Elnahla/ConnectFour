@@ -103,9 +103,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Back button
     backButton.addEventListener('click', goBack);
-    
-    // Mode selection
+      // Mode selection
     selectDeviceButton.addEventListener('click', () => {
+        // Clear any ongoing reconnection attempts when switching to local mode
+        clearReconnectionState();
         gameMode = 'local';
         showPage('page-device-names');
     });
@@ -244,15 +245,49 @@ document.addEventListener('DOMContentLoaded', () => {
         // Show a non-blocking notification instead of alert
         showNotification('Opponent declined the rematch.', 'info');
     });
-    
-    socket.on('opponentDisconnected', () => {
+      socket.on('opponentDisconnected', (data) => {
         if (!gameOver) {
-            alert('Your opponent has disconnected.');
-            turnDisplay.textContent = "You Win!";
-            turnDisplay.classList.add('game-over');
-            gameOver = true;
+            // Show a countdown notification instead of immediately declaring victory
+            showDisconnectionWarning(data.playerName, data.gracePeriod);
         }
-    });    socket.on('error', (message) => {
+    });
+
+    socket.on('opponentDisconnectedFinal', (data) => {
+        hideDisconnectionWarning();
+        if (!gameOver) {
+            turnDisplay.textContent = "You Win! 🎉 (Opponent disconnected)";
+            turnDisplay.classList.add('game-over');
+            turnDisplay.style.color = 'var(--primary-blue)';
+            gameOver = true;
+            
+            // Emit game end event for winner tracking
+            socket.emit('gameEnded', { roomId, winner: data.winner });
+            
+            if (gameMode === 'online') {
+                showRematchButton();
+            }
+        }
+    });    socket.on('playerReconnected', (data) => {
+        hideDisconnectionWarning();
+        showNotification(`${data.playerName} reconnected! Game continues.`, 'success');
+        
+        // Clear reconnection state if we're the reconnected player
+        if (data.playerName === onlinePlayerName) {
+            clearReconnectionState();
+        }
+    });
+
+    socket.on('gameResumed', (data) => {
+        // Update player information after reconnection
+        playerNames = {};
+        data.players.forEach(player => {
+            playerNames[player.playerNumber] = player.name;
+        });
+        showNotification('Reconnected successfully! Game continues.', 'success');
+        
+        // Clear reconnection state - we successfully reconnected
+        clearReconnectionState();
+    });socket.on('error', (message) => {
         alert(`Error: ${message}`);
         joinRoomCodeInput.value = '';
         
@@ -460,7 +495,14 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             turnDisplay.textContent = "It's a Draw! 🤝";
             turnDisplay.style.color = '#343a40';
-        }        if (gameMode === 'local') {
+        }
+
+        // Clear reconnection state when game ends
+        if (gameMode === 'online') {
+            clearReconnectionState();
+        }
+
+        if (gameMode === 'local') {
             restartButton.classList.remove('hidden');
         } else if (gameMode === 'online') {
             // Emit game end event to server for tracking winner
@@ -583,6 +625,163 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.key === 'Escape' && modalHistory.length > 1) {
                 goBack();
             }
+        }
+    });
+    
+    // --- Disconnection Warning System ---
+    let disconnectionWarning = null;
+    let disconnectionCountdown = null;
+    let reconnectionAttempted = false;
+
+    function showDisconnectionWarning(playerName, gracePeriod) {
+        hideDisconnectionWarning(); // Clear any existing warning
+        
+        // Create warning overlay
+        disconnectionWarning = document.createElement('div');
+        disconnectionWarning.classList.add('disconnection-warning');
+        disconnectionWarning.innerHTML = `
+            <div class="warning-content">
+                <h3>⚠️ Player Disconnected</h3>
+                <p><strong>${playerName}</strong> has lost connection</p>
+                <div class="countdown-container">
+                    <p>Waiting for reconnection...</p>
+                    <div class="countdown-timer">
+                        <span id="countdown-seconds">10</span> seconds remaining
+                    </div>
+                    <div class="countdown-progress">
+                        <div class="progress-bar"></div>
+                    </div>
+                </div>
+                <p class="warning-note">You will be declared the winner if they don't reconnect in time.</p>
+            </div>
+        `;
+        
+        // Style the warning
+        disconnectionWarning.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            animation: fadeIn 0.3s ease;
+        `;
+        
+        document.body.appendChild(disconnectionWarning);
+        
+        // Start countdown
+        let timeLeft = gracePeriod / 1000; // Convert to seconds
+        const countdownElement = disconnectionWarning.querySelector('#countdown-seconds');
+        const progressBar = disconnectionWarning.querySelector('.progress-bar');
+        
+        disconnectionCountdown = setInterval(() => {
+            timeLeft--;
+            countdownElement.textContent = timeLeft;
+            
+            // Update progress bar
+            const progressPercent = ((gracePeriod / 1000 - timeLeft) / (gracePeriod / 1000)) * 100;
+            progressBar.style.width = `${progressPercent}%`;
+            
+            if (timeLeft <= 0) {
+                clearInterval(disconnectionCountdown);
+            }
+        }, 1000);
+    }
+
+    function hideDisconnectionWarning() {
+        if (disconnectionWarning) {
+            disconnectionWarning.remove();
+            disconnectionWarning = null;
+        }
+        if (disconnectionCountdown) {
+            clearInterval(disconnectionCountdown);
+            disconnectionCountdown = null;
+        }
+        reconnectionAttempted = false;
+    }    // --- Reconnection Logic ---
+    let reconnectionTimeout = null;
+    let reconnectionAttempts = 0;
+    const MAX_RECONNECTION_ATTEMPTS = 3;
+    const RECONNECTION_DELAY = 2000; // 2 seconds delay before attempting to reconnect
+
+    socket.on('disconnect', () => {
+        if (gameMode === 'online' && roomId && !gameOver) {
+            console.log('Disconnected from server. Will attempt to reconnect...');
+            showNotification('Connection lost. Will attempt to reconnect...', 'error');
+            reconnectionAttempted = true;
+            reconnectionAttempts = 0;
+            
+            // Clear any existing reconnection timeout
+            if (reconnectionTimeout) {
+                clearTimeout(reconnectionTimeout);
+            }
+        }
+    });
+
+    socket.on('connect', () => {
+        if (reconnectionAttempted && gameMode === 'online' && roomId && onlinePlayerName) {
+            console.log('Socket connected. Waiting before attempting to rejoin game...');
+            
+            // Clear any existing timeout
+            if (reconnectionTimeout) {
+                clearTimeout(reconnectionTimeout);
+            }
+            
+            // Wait a bit for the connection to stabilize before attempting reconnection
+            reconnectionTimeout = setTimeout(() => {
+                attemptReconnection();
+            }, RECONNECTION_DELAY);
+        }
+    });
+
+    function attemptReconnection() {
+        if (reconnectionAttempts < MAX_RECONNECTION_ATTEMPTS && gameMode === 'online' && roomId && onlinePlayerName) {
+            reconnectionAttempts++;
+            console.log(`Attempting to rejoin game... (attempt ${reconnectionAttempts}/${MAX_RECONNECTION_ATTEMPTS})`);
+            
+            showNotification(`Attempting to rejoin game... (${reconnectionAttempts}/${MAX_RECONNECTION_ATTEMPTS})`, 'info');
+            
+            socket.emit('attemptReconnect', { roomId, playerName: onlinePlayerName });
+            
+            // Set a timeout for this reconnection attempt
+            reconnectionTimeout = setTimeout(() => {
+                if (reconnectionAttempts < MAX_RECONNECTION_ATTEMPTS) {
+                    console.log(`Reconnection attempt ${reconnectionAttempts} failed, trying again...`);
+                    attemptReconnection();
+                } else {
+                    console.log('All reconnection attempts failed');
+                    showNotification('Failed to reconnect to the game. Please refresh the page.', 'error');
+                    reconnectionAttempted = false;
+                }
+            }, 3000); // Wait 3 seconds before next attempt
+        }
+    }
+
+    function clearReconnectionState() {
+        reconnectionAttempted = false;
+        reconnectionAttempts = 0;
+        if (reconnectionTimeout) {
+            clearTimeout(reconnectionTimeout);
+            reconnectionTimeout = null;
+        }
+    }
+
+    // Handle reconnection failure from server
+    socket.on('reconnectionFailed', (data) => {
+        console.log('Reconnection failed:', data.message);
+        if (reconnectionAttempts < MAX_RECONNECTION_ATTEMPTS) {
+            showNotification(`Reconnection failed: ${data.message}. Retrying...`, 'error');
+            // Try again after a delay
+            reconnectionTimeout = setTimeout(() => {
+                attemptReconnection();
+            }, 2000);
+        } else {
+            showNotification('Failed to reconnect to the game. Please refresh the page.', 'error');
+            clearReconnectionState();
         }
     });
 });

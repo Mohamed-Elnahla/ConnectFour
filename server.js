@@ -137,20 +137,110 @@ io.on('connection', (socket) => {
                 socket.to(roomId).emit('rematchDeclined');
             }
         }
-    });    // Handle player disconnect
+    });
+
+    // Handle player reconnection attempts
+    socket.on('attemptReconnect', ({ roomId, playerName }) => {
+        const room = rooms[roomId];
+        if (room && room.gameInProgress) {
+            // Find disconnected player with matching name
+            const disconnectedPlayerIndex = room.players.findIndex(p => 
+                p.name === playerName && p.disconnected
+            );
+            
+            if (disconnectedPlayerIndex !== -1) {
+                // Clear disconnection timer if it exists
+                if (room.disconnectionTimer) {
+                    clearTimeout(room.disconnectionTimer);
+                    room.disconnectionTimer = null;
+                }
+                
+                // Reconnect the player
+                room.players[disconnectedPlayerIndex].id = socket.id;
+                room.players[disconnectedPlayerIndex].disconnected = false;
+                room.players[disconnectedPlayerIndex].disconnectTime = null;
+                
+                // Join the room
+                socket.join(roomId);
+                
+                console.log(`Player ${playerName} reconnected to room ${roomId}`);
+                
+                // Notify both players about successful reconnection
+                io.to(roomId).emit('playerReconnected', {
+                    playerName: playerName,
+                    players: room.players,
+                    nextStarter: room.nextStarter
+                });
+                  // Send current game state to reconnected player
+                socket.emit('gameResumed', {
+                    roomId,
+                    players: room.players,
+                    nextStarter: room.nextStarter
+                });
+            } else {
+                socket.emit('reconnectionFailed', { 
+                    message: 'Unable to find your player slot in this room. You may have been replaced.' 
+                });
+            }
+        } else {
+            socket.emit('reconnectionFailed', { 
+                message: 'Room not found or game not in progress.' 
+            });
+        }
+    });
+
+    // Handle player disconnect
     socket.on('disconnect', () => {
         console.log(`User disconnected: ${socket.id}`);
-        // Find which room the player was in and notify the other player
+        // Find which room the player was in and handle disconnection
         for (const roomId in rooms) {
             const room = rooms[roomId];
             const playerIndex = room.players.findIndex(p => p.id === socket.id);
             if (playerIndex !== -1) {
-                // Only notify if game was in progress
+                const disconnectedPlayer = room.players[playerIndex];
+                
+                // Only handle if game was in progress
                 if (room.gameInProgress) {
-                    socket.to(roomId).emit('opponentDisconnected');
+                    console.log(`Player ${disconnectedPlayer.name} disconnected from room ${roomId}`);
+                    
+                    // Mark player as disconnected instead of removing immediately
+                    room.players[playerIndex].disconnected = true;
+                    room.players[playerIndex].disconnectTime = Date.now();
+                    
+                    // Notify the remaining player about disconnection
+                    socket.to(roomId).emit('opponentDisconnected', {
+                        playerName: disconnectedPlayer.name,
+                        gracePeriod: 10000 // 10 seconds
+                    });
+                    
+                    // Start 10-second grace period timer
+                    room.disconnectionTimer = setTimeout(() => {
+                        // Check if player is still disconnected after 10 seconds
+                        const stillDisconnected = room.players[playerIndex].disconnected;
+                        if (stillDisconnected) {
+                            console.log(`Grace period expired for room ${roomId}. Declaring winner.`);
+                            
+                            // Find the remaining connected player and declare them winner
+                            const remainingPlayer = room.players.find(p => !p.disconnected);
+                            if (remainingPlayer) {
+                                io.to(roomId).emit('opponentDisconnectedFinal', {
+                                    winner: remainingPlayer.playerNumber,
+                                    winnerName: remainingPlayer.name
+                                });
+                            }
+                            
+                            // Clean up the room after a short delay
+                            setTimeout(() => {
+                                delete rooms[roomId];
+                                console.log(`Room ${roomId} closed due to disconnection.`);
+                            }, 2000);
+                        }
+                    }, 10000); // 10 seconds
+                } else {
+                    // If game not in progress, just clean up immediately
+                    delete rooms[roomId];
+                    console.log(`Room ${roomId} closed (game not in progress).`);
                 }
-                delete rooms[roomId]; // Clean up the room
-                console.log(`Room ${roomId} closed.`);
                 break;
             }
         }
