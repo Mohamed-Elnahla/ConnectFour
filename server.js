@@ -16,7 +16,9 @@ app.use(express.static('public'));
 const rooms = {};
 
 io.on('connection', (socket) => {
-    console.log(`User connected: ${socket.id}`);    // Create a new game room
+    console.log(`User connected: ${socket.id}`);
+    
+    // Create a new game room
     socket.on('createGame', ({ playerName }) => {
         const roomId = nanoid(6); // Generate a 6-character unique ID
         rooms[roomId] = {
@@ -25,23 +27,26 @@ io.on('connection', (socket) => {
             gameInProgress: false,
             nextStarter: 1, // Who starts the next game (1 or 2)
             lastWinner: null, // Track the winner of the last game
+            scores: { 1: 0, 2: 0 }, // Track wins for each player
         };
         socket.join(roomId);
         socket.emit('gameCreated', { roomId });
         console.log(`Room created: ${roomId} by ${socket.id} (${playerName})`);
-    });// Join an existing game room
+    });
+
+    // Join an existing game room
     socket.on('joinGame', ({ roomId, playerName }) => {
         const room = rooms[roomId];
         if (room && room.players.length === 1) {
             room.players.push({ id: socket.id, playerNumber: 2, name: playerName || 'Player 2' });
             socket.join(roomId);
-            console.log(`User ${socket.id} (${playerName}) joined room ${roomId}`);
-              // Both players are in, start the game
+            console.log(`User ${socket.id} (${playerName}) joined room ${roomId}`);            // Both players are in, start the game
             room.gameInProgress = true;
             io.to(roomId).emit('gameStarted', { 
                 roomId,
                 players: room.players,
-                nextStarter: room.nextStarter
+                nextStarter: room.nextStarter,
+                scores: room.scores
             });
         } else {
             socket.emit('error', 'Room is full or does not exist.');
@@ -65,18 +70,22 @@ io.on('connection', (socket) => {
                 });
             }
         }
-    });
-
-    // Handle game end to track winner
+    });    // Handle game end to track winner
     socket.on('gameEnded', ({ roomId, winner }) => {
         const room = rooms[roomId];
         if (room) {
             room.lastWinner = winner;
+            
+            // Update scores if there was a winner
+            if (winner && room.scores) {
+                room.scores[winner]++;
+                console.log(`Game ended in room ${roomId}. Winner: ${winner}, Scores: Player 1 - ${room.scores[1]}, Player 2 - ${room.scores[2]}`);
+            }
+            
             // Set next starter: if there was a winner, they start next; otherwise keep current starter
             if (winner) {
                 room.nextStarter = winner;
             }
-            console.log(`Game ended in room ${roomId}. Winner: ${winner}, Next starter: ${room.nextStarter}`);
         }
     });
 
@@ -97,13 +106,14 @@ io.on('connection', (socket) => {
                     socket.to(roomId).emit('rematchRequested', { 
                         playerName: player.name,
                         playerNumber: player.playerNumber
-                    });
-                      // If both players have requested rematch, start new game
+                    });                    // If both players have requested rematch, start new game
                     if (room.rematchRequests.size === 2) {
                         room.rematchRequests.clear();
                         room.gameInProgress = true;
                         io.to(roomId).emit('rematchAccepted', { 
-                            nextStarter: room.nextStarter 
+                            nextStarter: room.nextStarter,
+                            scores: room.scores,
+                            players: room.players
                         });
                     }
                 }
@@ -122,13 +132,14 @@ io.on('connection', (socket) => {
                         room.rematchRequests = new Set();
                     }
                     
-                    room.rematchRequests.add(socket.id);
-                      // If both players have accepted, start new game
+                    room.rematchRequests.add(socket.id);                    // If both players have accepted, start new game
                     if (room.rematchRequests.size === 2) {
                         room.rematchRequests.clear();
                         room.gameInProgress = true;
                         io.to(roomId).emit('rematchAccepted', { 
-                            nextStarter: room.nextStarter 
+                            nextStarter: room.nextStarter,
+                            scores: room.scores,
+                            players: room.players
                         });
                     }
                 }
@@ -235,10 +246,8 @@ io.on('connection', (socket) => {
                                 console.log(`Room ${roomId} closed due to disconnection.`);
                             }, 2000);
                         }
-                    }, 10000); // 10 seconds
-                } else {
-                    // If game not in progress, just clean up immediately
-                    delete rooms[roomId];
+                    }, 10000); // 10 seconds                } else {                // If game not in progress, just clean up immediately
+                delete rooms[roomId];
                     console.log(`Room ${roomId} closed (game not in progress).`);
                 }
                 break;

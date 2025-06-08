@@ -41,14 +41,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const onlineControls = document.getElementById('online-controls');
     const rematchButton = document.getElementById('rematch-button');
     const reactionButtons = document.querySelectorAll('.reaction-btn');
-    const reactionOverlay = document.getElementById('reaction-overlay');
-
-    // Rematch Modal Elements
+    const reactionOverlay = document.getElementById('reaction-overlay');    // Rematch Modal Elements
     const rematchModal = document.getElementById('rematch-modal');
     const rematchTitle = document.getElementById('rematch-title');
     const rematchMessage = document.getElementById('rematch-message');
     const acceptRematchBtn = document.getElementById('accept-rematch-btn');
     const declineRematchBtn = document.getElementById('decline-rematch-btn');
+
+    // Scoreboard Elements
+    const scoreboard = document.getElementById('scoreboard');
+    const scorePlayer1Name = document.getElementById('score-player1-name');
+    const scorePlayer1Value = document.getElementById('score-player1');
+    const scorePlayer2Name = document.getElementById('score-player2-name');
+    const scorePlayer2Value = document.getElementById('score-player2');
 
     // --- Game Constants & State ---
     const ROWS = 6;
@@ -231,9 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Reset button state
         selectCreateButton.disabled = false;        selectCreateButton.classList.remove('btn-loading');
-    });
-
-    socket.on('gameStarted', (data) => {
+    });    socket.on('gameStarted', (data) => {
         if (!playerNumber) {
             playerNumber = 2;
         }
@@ -245,6 +248,11 @@ document.addEventListener('DOMContentLoaded', () => {
             playerNames = { 1: player1.name, 2: player2.name };
         } else {
             playerNames = { 1: player1.name, 2: player2.name };
+        }
+        
+        // Update scoreboard if scores are available
+        if (data.scores && data.players) {
+            updateScoreboard(data.scores, data.players);
         }
         
         // Apply selected color for online mode
@@ -265,11 +273,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('rematchRequested', (data) => {        showRematchModal(data.playerName);
-    });
-
-    socket.on('rematchAccepted', (data) => {
+    });    socket.on('rematchAccepted', (data) => {
         hideRematchModal();
         hideRematchUI();
+        
+        // Update scoreboard if scores are available
+        if (data.scores && data.players) {
+            updateScoreboard(data.scores, data.players);
+        }
+        
         startGame(data.nextStarter || 1);
     });
 
@@ -351,15 +363,15 @@ document.addEventListener('DOMContentLoaded', () => {
         board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
         
         turnDisplay.classList.remove('game-over');
-        restartButton.classList.add('hidden');
-
-        // Show/hide appropriate controls based on game mode
+        restartButton.classList.add('hidden');        // Show/hide appropriate controls based on game mode
         if (gameMode === 'online') {
             onlineControls.classList.remove('hidden');
             rematchButton.classList.add('hidden');
+            showScoreboard();
         } else {
             onlineControls.classList.add('hidden');
-        }        createBoard();
+            hideScoreboard();
+        }createBoard();
         updateTurnDisplay();
     }
 
@@ -859,4 +871,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Call the initialization function
     initializeColorSelection();
+
+    // --- Scoreboard System Functions ---
+    function showScoreboard() {
+        if (gameMode === 'online') {
+            scoreboard.classList.remove('hidden');
+        }
+    }
+
+    function hideScoreboard() {
+        scoreboard.classList.add('hidden');
+    }
+
+    function updateScoreboard(scores, players) {
+        if (!scores || !players) return;
+        
+        // Find player data
+        const player1 = players.find(p => p.playerNumber === 1);
+        const player2 = players.find(p => p.playerNumber === 2);
+        
+        if (player1 && player2) {
+            // Update player names
+            scorePlayer1Name.textContent = player1.name;
+            scorePlayer2Name.textContent = player2.name;
+            
+            // Store previous scores for animation
+            const prevScore1 = parseInt(scorePlayer1Value.textContent) || 0;
+            const prevScore2 = parseInt(scorePlayer2Value.textContent) || 0;
+            
+            // Update scores with animation if they changed
+            if (scores[1] !== prevScore1) {
+                scorePlayer1Value.textContent = scores[1];
+                scorePlayer1Value.classList.add('score-updated');
+                setTimeout(() => scorePlayer1Value.classList.remove('score-updated'), 600);
+            }
+            
+            if (scores[2] !== prevScore2) {
+                scorePlayer2Value.textContent = scores[2];
+                scorePlayer2Value.classList.add('score-updated');
+                setTimeout(() => scorePlayer2Value.classList.remove('score-updated'), 600);
+            }
+        }
+    }
 });

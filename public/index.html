@@ -220,6 +220,23 @@
           <main class="game-main">
             <div id="game-info" class="game-status">
                 <h2 id="turn-display" class="turn-indicator"></h2>
+                
+                <!-- Scoreboard for online games -->
+                <div id="scoreboard" class="scoreboard hidden">
+                    <h3 class="scoreboard-title">Match Score</h3>
+                    <div class="score-display">
+                        <div class="player-score">
+                            <span class="player-name" id="score-player1-name">Player 1</span>
+                            <span class="score-value" id="score-player1">0</span>
+                        </div>
+                        <div class="score-separator">-</div>
+                        <div class="player-score">
+                            <span class="score-value" id="score-player2">0</span>
+                            <span class="player-name" id="score-player2-name">Player 2</span>
+                        </div>
+                    </div>
+                </div>
+                
                 <div id="game-controls" class="game-controls">
                     <button id="restart-button" class="btn btn-secondary hidden">
                         <span class="btn-icon">🔄</span>
