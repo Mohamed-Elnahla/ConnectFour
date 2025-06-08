@@ -9,11 +9,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Modal & Navigation Elements
     const gameSetupModal = document.getElementById('game-setup-modal');
     const backButton = document.getElementById('back-button');
-    
-    // Modal Pages
+      // Modal Pages
     const pageModeSelection = document.getElementById('page-mode-selection');
     const pageDeviceNames = document.getElementById('page-device-names');
     const pageOnlineName = document.getElementById('page-online-name');
+    const pageOnlineColor = document.getElementById('page-online-color');
     const pageOnlineJoinCreate = document.getElementById('page-online-join-create');
     const pageOnlineJoin = document.getElementById('page-online-join');
     const pageOnlineWaiting = document.getElementById('page-online-waiting');
@@ -26,10 +26,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const deviceNameForm = document.getElementById('device-name-form');
     const devicePlayer1NameInput = document.getElementById('device-player1-name');
     const devicePlayer2NameInput = document.getElementById('device-player2-name');
-    
-    // Online Mode Elements
+      // Online Mode Elements
     const onlineNameForm = document.getElementById('online-name-form');
     const onlinePlayerNameInput = document.getElementById('online-player-name');
+    const colorOptions = document.querySelectorAll('.color-option');
+    const continueColorBtn = document.getElementById('continue-color-btn');
     const selectJoinButton = document.getElementById('select-join-button');
     const selectCreateButton = document.getElementById('select-create-button');
     const joinGameForm = document.getElementById('join-game-form');
@@ -60,16 +61,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let playerNumber;
     let roomId;
     let isMyTurn;
-    
-    // -- Modal Navigation State --
+      // -- Modal Navigation State --
     let currentPage = 'page-mode-selection';
     let onlinePlayerName = '';
-    let modalHistory = [];
-
-    // --- Modal Navigation Functions ---
+    let selectedPlayerColor = { main: '#ef4444', light: '#f87171' }; // Default red
+    let modalHistory = [];    // --- Modal Navigation Functions ---
     function showPage(pageId, addToHistory = true) {
         // Hide all pages
-        [pageModeSelection, pageDeviceNames, pageOnlineName, pageOnlineJoinCreate, pageOnlineJoin, pageOnlineWaiting].forEach(page => {
+        [pageModeSelection, pageDeviceNames, pageOnlineName, pageOnlineColor, pageOnlineJoinCreate, pageOnlineJoin, pageOnlineWaiting].forEach(page => {
             page.classList.add('hidden');
         });
         
@@ -102,12 +101,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }    // --- Event Listeners ---
     
     // Back button
-    backButton.addEventListener('click', goBack);
-      // Mode selection
+    backButton.addEventListener('click', goBack);      // Mode selection
     selectDeviceButton.addEventListener('click', () => {
         // Clear any ongoing reconnection attempts when switching to local mode
         clearReconnectionState();
         gameMode = 'local';
+        // Reset colors to default for local mode
+        resetPlayerColors();
         showPage('page-device-names');
     });
 
@@ -120,8 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
     deviceNameForm.addEventListener('submit', (e) => {
         e.preventDefault();
         playerNames[1] = devicePlayer1NameInput.value.trim() || 'Player 1';
-        playerNames[2] = devicePlayer2NameInput.value.trim() || 'Player 2';
-        gameSetupModal.classList.remove('show');
+        playerNames[2] = devicePlayer2NameInput.value.trim() || 'Player 2';        gameSetupModal.classList.remove('show');
         startGame();
     });
 
@@ -129,7 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
     onlineNameForm.addEventListener('submit', (e) => {
         e.preventDefault();
         onlinePlayerName = onlinePlayerNameInput.value.trim() || 'Player';
-        showPage('page-online-join-create');
+        showPage('page-online-color');
     });
 
     // Online mode - join/create selection
@@ -183,24 +182,55 @@ document.addEventListener('DOMContentLoaded', () => {
     acceptRematchBtn.addEventListener('click', () => {
         hideRematchModal();
         socket.emit('respondToRematch', { roomId, accepted: true });
-        rematchButton.textContent = 'Waiting for opponent...';
-        rematchButton.disabled = true;
+        rematchButton.textContent = 'Waiting for opponent...';        rematchButton.disabled = true;
     });
 
     declineRematchBtn.addEventListener('click', () => {
         hideRematchModal();
         socket.emit('respondToRematch', { roomId, accepted: false });
-    });    // --- Socket.IO Event Handlers ---
+    });
+
+    // Color selection event listeners
+    colorOptions.forEach(option => {
+        option.addEventListener('click', () => {
+            // Remove selected class from all options
+            colorOptions.forEach(opt => opt.classList.remove('selected'));
+            
+            // Add selected class to clicked option
+            option.classList.add('selected');
+            
+            // Store selected color
+            selectedPlayerColor = {
+                main: option.dataset.color,
+                light: option.dataset.light
+            };
+            
+            // Enable continue button
+            continueColorBtn.disabled = false;
+            
+            // Apply color immediately for preview            applyPlayerColor();
+        });
+    });
+
+    // Continue from color selection to join/create
+    continueColorBtn.addEventListener('click', () => {
+        showPage('page-online-join-create');
+    });
+
+    // --- Socket.IO Event Handlers ---
     socket.on('gameCreated', (data) => {
         roomId = data.roomId;
         playerNumber = 1;
         playerNames = { 1: "You", 2: "Opponent" };
         waitingRoomCode.textContent = roomId;
+        
+        // Apply selected color for online mode
+        applyPlayerColor();
+        
         showPage('page-online-waiting');
         
         // Reset button state
-        selectCreateButton.disabled = false;
-        selectCreateButton.classList.remove('btn-loading');
+        selectCreateButton.disabled = false;        selectCreateButton.classList.remove('btn-loading');
     });
 
     socket.on('gameStarted', (data) => {
@@ -217,6 +247,9 @@ document.addEventListener('DOMContentLoaded', () => {
             playerNames = { 1: player1.name, 2: player2.name };
         }
         
+        // Apply selected color for online mode
+        applyPlayerColor();
+        
         gameSetupModal.classList.remove('show');
         startGame(data.nextStarter || 1);
     });
@@ -231,9 +264,10 @@ document.addEventListener('DOMContentLoaded', () => {
         showReactionFeedback(data.reaction, false, data.playerName);
     });
 
-    socket.on('rematchRequested', (data) => {
-        showRematchModal(data.playerName);
-    });    socket.on('rematchAccepted', (data) => {
+    socket.on('rematchRequested', (data) => {        showRematchModal(data.playerName);
+    });
+
+    socket.on('rematchAccepted', (data) => {
         hideRematchModal();
         hideRematchUI();
         startGame(data.nextStarter || 1);
@@ -263,11 +297,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // Emit game end event for winner tracking
             socket.emit('gameEnded', { roomId, winner: data.winner });
             
-            if (gameMode === 'online') {
-                showRematchButton();
+            if (gameMode === 'online') {                showRematchButton();
             }
         }
-    });    socket.on('playerReconnected', (data) => {
+    });
+
+    socket.on('playerReconnected', (data) => {
         hideDisconnectionWarning();
         showNotification(`${data.playerName} reconnected! Game continues.`, 'success');
         
@@ -285,9 +320,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         showNotification('Reconnected successfully! Game continues.', 'success');
         
-        // Clear reconnection state - we successfully reconnected
-        clearReconnectionState();
-    });socket.on('error', (message) => {
+        // Clear reconnection state - we successfully reconnected        clearReconnectionState();
+    });
+
+    socket.on('error', (message) => {
         alert(`Error: ${message}`);
         joinRoomCodeInput.value = '';
         
@@ -297,9 +333,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const joinButton = joinGameForm.querySelector('button[type="submit"]');
         if (joinButton) {
             joinButton.disabled = false;
-            joinButton.classList.remove('btn-loading');
-        }
-    });    // --- Core Game Functions ---
+            joinButton.classList.remove('btn-loading');        }
+    });
+
+    // --- Core Game Functions ---
     function startGame(starterPlayer = 1) {
         gameOver = false;
         currentPlayer = starterPlayer;
@@ -395,12 +432,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (targetCell) {
             targetCell.appendChild(piece);
         }
-    }
-
-    function switchPlayer() {
+    }    function switchPlayer() {
         currentPlayer = currentPlayer === 1 ? 2 : 1;
         updateTurnDisplay();
-    }    function updateTurnDisplay() {
+    }
+
+    function updateTurnDisplay() {
         if (gameOver) return;
         if (gameMode === 'online') {
             const currentPlayerName = playerNames[currentPlayer];
@@ -476,9 +513,10 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => { line.style.transform = `rotate(${angle}deg) scaleX(1)`; }, 50);
     }
 
-    function isBoardFull() {
-        return board.every(row => row.every(cell => cell !== 0));
-    }    function endGame(winner) {
+    function isBoardFull() {        return board.every(row => row.every(cell => cell !== 0));
+    }
+
+    function endGame(winner) {
         gameOver = true;
         turnDisplay.classList.add('game-over');
         if (winner) {
@@ -522,9 +560,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     column.classList.remove('full');
                 }
-            }
-        }
-    }    // Debug function to log column states (can be removed in production)
+            }        }
+    }
+
+    // Debug function to log column states (can be removed in production)
     function debugColumnStates() {
         console.log('Column states:');
         for (let c = 0; c < COLS; c++) {
@@ -784,4 +823,40 @@ document.addEventListener('DOMContentLoaded', () => {
             clearReconnectionState();
         }
     });
+    
+    // --- Color Management Functions ---
+    function applyPlayerColor() {
+        // Only apply color in online mode and if a color is selected
+        if (gameMode === 'online' && selectedPlayerColor) {
+            // Determine which player color to override based on our player number
+            const colorVar = playerNumber === 1 ? '--player1-color' : '--player2-color';
+            const lightVar = playerNumber === 1 ? '--player1-light' : '--player2-light';
+            
+            // Apply the selected colors as CSS custom properties
+            document.documentElement.style.setProperty(colorVar, selectedPlayerColor.main);
+            document.documentElement.style.setProperty(lightVar, selectedPlayerColor.light);
+        }
+    }
+
+    function resetPlayerColors() {
+        // Reset to default colors
+        document.documentElement.style.removeProperty('--player1-color');
+        document.documentElement.style.removeProperty('--player1-light');
+        document.documentElement.style.removeProperty('--player2-color');
+        document.documentElement.style.removeProperty('--player2-light');
+    }    // Initialize default color selection
+    function initializeColorSelection() {
+        // Select the first color option (red) by default
+        if (colorOptions.length > 0) {
+            colorOptions[0].classList.add('selected');
+            selectedPlayerColor = {
+                main: colorOptions[0].dataset.color,
+                light: colorOptions[0].dataset.light
+            };
+            continueColorBtn.disabled = false;
+        }
+    }
+
+    // Call the initialization function
+    initializeColorSelection();
 });
