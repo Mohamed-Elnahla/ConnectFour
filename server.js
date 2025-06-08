@@ -16,32 +16,32 @@ app.use(express.static('public'));
 const rooms = {};
 
 io.on('connection', (socket) => {
-    console.log(`User connected: ${socket.id}`);
-
-    // Create a new game room
+    console.log(`User connected: ${socket.id}`);    // Create a new game room
     socket.on('createGame', ({ playerName }) => {
         const roomId = nanoid(6); // Generate a 6-character unique ID
         rooms[roomId] = {
             players: [{ id: socket.id, playerNumber: 1, name: playerName || 'Player 1' }],
             gameBoard: null,
             gameInProgress: false,
+            nextStarter: 1, // Who starts the next game (1 or 2)
+            lastWinner: null, // Track the winner of the last game
         };
         socket.join(roomId);
         socket.emit('gameCreated', { roomId });
         console.log(`Room created: ${roomId} by ${socket.id} (${playerName})`);
-    });    // Join an existing game room
+    });// Join an existing game room
     socket.on('joinGame', ({ roomId, playerName }) => {
         const room = rooms[roomId];
         if (room && room.players.length === 1) {
             room.players.push({ id: socket.id, playerNumber: 2, name: playerName || 'Player 2' });
             socket.join(roomId);
             console.log(`User ${socket.id} (${playerName}) joined room ${roomId}`);
-            
-            // Both players are in, start the game
+              // Both players are in, start the game
             room.gameInProgress = true;
             io.to(roomId).emit('gameStarted', { 
                 roomId,
-                players: room.players
+                players: room.players,
+                nextStarter: room.nextStarter
             });
         } else {
             socket.emit('error', 'Room is full or does not exist.');
@@ -65,7 +65,22 @@ io.on('connection', (socket) => {
                 });
             }
         }
-    });    // Handle rematch request
+    });
+
+    // Handle game end to track winner
+    socket.on('gameEnded', ({ roomId, winner }) => {
+        const room = rooms[roomId];
+        if (room) {
+            room.lastWinner = winner;
+            // Set next starter: if there was a winner, they start next; otherwise keep current starter
+            if (winner) {
+                room.nextStarter = winner;
+            }
+            console.log(`Game ended in room ${roomId}. Winner: ${winner}, Next starter: ${room.nextStarter}`);
+        }
+    });
+
+    // Handle rematch request
     socket.on('requestRematch', ({ roomId }) => {
         const room = rooms[roomId];
         if (room) {
@@ -83,12 +98,13 @@ io.on('connection', (socket) => {
                         playerName: player.name,
                         playerNumber: player.playerNumber
                     });
-                    
-                    // If both players have requested rematch, start new game
+                      // If both players have requested rematch, start new game
                     if (room.rematchRequests.size === 2) {
                         room.rematchRequests.clear();
                         room.gameInProgress = true;
-                        io.to(roomId).emit('rematchAccepted');
+                        io.to(roomId).emit('rematchAccepted', { 
+                            nextStarter: room.nextStarter 
+                        });
                     }
                 }
             }
@@ -107,12 +123,13 @@ io.on('connection', (socket) => {
                     }
                     
                     room.rematchRequests.add(socket.id);
-                    
-                    // If both players have accepted, start new game
+                      // If both players have accepted, start new game
                     if (room.rematchRequests.size === 2) {
                         room.rematchRequests.clear();
                         room.gameInProgress = true;
-                        io.to(roomId).emit('rematchAccepted');
+                        io.to(roomId).emit('rematchAccepted', { 
+                            nextStarter: room.nextStarter 
+                        });
                     }
                 }
             } else {

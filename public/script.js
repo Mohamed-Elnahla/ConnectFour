@@ -210,15 +210,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // Set player names from server data
         const player1 = data.players.find(p => p.playerNumber === 1);
         const player2 = data.players.find(p => p.playerNumber === 2);
-        
-        if (playerNumber === 1) {
+          if (playerNumber === 1) {
             playerNames = { 1: player1.name, 2: player2.name };
         } else {
             playerNames = { 1: player1.name, 2: player2.name };
         }
         
         gameSetupModal.classList.remove('show');
-        startGame();
+        startGame(data.nextStarter || 1);
     });
 
     socket.on('moveMade', (data) => {
@@ -233,12 +232,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('rematchRequested', (data) => {
         showRematchModal(data.playerName);
-    });
-
-    socket.on('rematchAccepted', () => {
+    });    socket.on('rematchAccepted', (data) => {
         hideRematchModal();
         hideRematchUI();
-        startGame();
+        startGame(data.nextStarter || 1);
     });
 
     socket.on('rematchDeclined', () => {
@@ -267,13 +264,18 @@ document.addEventListener('DOMContentLoaded', () => {
             joinButton.disabled = false;
             joinButton.classList.remove('btn-loading');
         }
-    });
-
-    // --- Core Game Functions ---
-    function startGame() {
+    });    // --- Core Game Functions ---
+    function startGame(starterPlayer = 1) {
         gameOver = false;
-        currentPlayer = 1;
-        isMyTurn = (gameMode === 'local' || playerNumber === 1);
+        currentPlayer = starterPlayer;
+        
+        // For online mode, determine if it's my turn based on starter
+        if (gameMode === 'online') {
+            isMyTurn = (playerNumber === starterPlayer);
+        } else {
+            isMyTurn = true; // Local mode - always my turn
+        }
+        
         board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
         
         turnDisplay.classList.remove('game-over');
@@ -458,11 +460,11 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             turnDisplay.textContent = "It's a Draw! 🤝";
             turnDisplay.style.color = '#343a40';
-        }
-
-        if (gameMode === 'local') {
+        }        if (gameMode === 'local') {
             restartButton.classList.remove('hidden');
         } else if (gameMode === 'online') {
+            // Emit game end event to server for tracking winner
+            socket.emit('gameEnded', { roomId, winner });
             showRematchButton();
         }
     }
