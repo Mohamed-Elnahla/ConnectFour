@@ -73,7 +73,9 @@ io.on('connection', (socket) => {
     });    // Handle game end to track winner
     socket.on('gameEnded', ({ roomId, winner }) => {
         const room = rooms[roomId];
-        if (room) {
+        if (room && room.gameInProgress) {
+            // Only process if game is still in progress (prevent double counting)
+            room.gameInProgress = false;
             room.lastWinner = winner;
             
             // Update scores if there was a winner
