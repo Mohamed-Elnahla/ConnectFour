@@ -1,27 +1,42 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- Socket.IO Client Setup ---
-    const socket = io();
-
-    // --- DOM Elements ---
+    const socket = io();    // --- DOM Elements ---
     const boardElement = document.getElementById('game-board');
     const winLineContainer = document.getElementById('win-line-container');
     const turnDisplay = document.getElementById('turn-display');
     const restartButton = document.getElementById('restart-button');
-      // Modal & Lobby Elements
+    
+    // Modal & Navigation Elements
     const gameSetupModal = document.getElementById('game-setup-modal');
-    const modeSelection = document.getElementById('mode-selection');
-    const nameInputSection = document.getElementById('name-input-section');
-    const onlineLobby = document.getElementById('online-lobby');
-    const playLocalButton = document.getElementById('play-local-button');
-    const playOnlineButton = document.getElementById('play-online-button');
-    const nameForm = document.getElementById('name-form');
-    const player1NameInput = document.getElementById('player1-name');
-    const player2NameInput = document.getElementById('player2-name');
+    const backButton = document.getElementById('back-button');
+    
+    // Modal Pages
+    const pageModeSelection = document.getElementById('page-mode-selection');
+    const pageDeviceNames = document.getElementById('page-device-names');
+    const pageOnlineName = document.getElementById('page-online-name');
+    const pageOnlineJoinCreate = document.getElementById('page-online-join-create');
+    const pageOnlineJoin = document.getElementById('page-online-join');
+    const pageOnlineWaiting = document.getElementById('page-online-waiting');
+    
+    // Mode Selection Buttons
+    const selectDeviceButton = document.getElementById('select-device-button');
+    const selectOnlineButton = document.getElementById('select-online-button');
+    
+    // Device Mode Elements
+    const deviceNameForm = document.getElementById('device-name-form');
+    const devicePlayer1NameInput = document.getElementById('device-player1-name');
+    const devicePlayer2NameInput = document.getElementById('device-player2-name');
+    
+    // Online Mode Elements
+    const onlineNameForm = document.getElementById('online-name-form');
     const onlinePlayerNameInput = document.getElementById('online-player-name');
-    const createGameButton = document.getElementById('create-game-button');
-    const joinForm = document.getElementById('join-form');
-    const roomIdInput = document.getElementById('room-id-input');
-    const roomIdDisplay = document.getElementById('room-id-display');    // Online Game Elements
+    const selectJoinButton = document.getElementById('select-join-button');
+    const selectCreateButton = document.getElementById('select-create-button');
+    const joinGameForm = document.getElementById('join-game-form');
+    const joinRoomCodeInput = document.getElementById('join-room-code');
+    const waitingRoomCode = document.getElementById('waiting-room-code');
+
+    // Online Game Elements
     const onlineControls = document.getElementById('online-controls');
     const rematchButton = document.getElementById('rematch-button');
     const reactionButtons = document.querySelectorAll('.reaction-btn');
@@ -40,61 +55,121 @@ document.addEventListener('DOMContentLoaded', () => {
     let board = [];
     let currentPlayer;
     let gameOver = false;
-    let playerNames = { 1: 'Player 1', 2: 'Player 2' };
-
-    // -- Online Game State --
+    let playerNames = { 1: 'Player 1', 2: 'Player 2' };    // -- Online Game State --
     let gameMode = 'local';
     let playerNumber;
     let roomId;
     let isMyTurn;
+    
+    // -- Modal Navigation State --
+    let currentPage = 'page-mode-selection';
+    let onlinePlayerName = '';
+    let modalHistory = [];
 
-    // --- Event Listeners ---
-    playLocalButton.addEventListener('click', () => {
+    // --- Modal Navigation Functions ---
+    function showPage(pageId, addToHistory = true) {
+        // Hide all pages
+        [pageModeSelection, pageDeviceNames, pageOnlineName, pageOnlineJoinCreate, pageOnlineJoin, pageOnlineWaiting].forEach(page => {
+            page.classList.add('hidden');
+        });
+        
+        // Show the requested page
+        const targetPage = document.getElementById(pageId);
+        if (targetPage) {
+            targetPage.classList.remove('hidden');
+            currentPage = pageId;
+            
+            // Add to history if requested
+            if (addToHistory && modalHistory[modalHistory.length - 1] !== pageId) {
+                modalHistory.push(pageId);
+            }
+            
+            // Show/hide back button
+            if (modalHistory.length > 1) {
+                backButton.classList.remove('hidden');
+            } else {
+                backButton.classList.add('hidden');
+            }
+        }
+    }
+    
+    function goBack() {
+        if (modalHistory.length > 1) {
+            modalHistory.pop(); // Remove current page
+            const previousPage = modalHistory[modalHistory.length - 1];
+            showPage(previousPage, false);
+        }
+    }    // --- Event Listeners ---
+    
+    // Back button
+    backButton.addEventListener('click', goBack);
+    
+    // Mode selection
+    selectDeviceButton.addEventListener('click', () => {
         gameMode = 'local';
-        modeSelection.classList.add('hidden');
-        nameInputSection.classList.remove('hidden');
+        showPage('page-device-names');
     });
 
-    playOnlineButton.addEventListener('click', () => {
+    selectOnlineButton.addEventListener('click', () => {
         gameMode = 'online';
-        modeSelection.classList.add('hidden');
-        onlineLobby.classList.remove('hidden');
+        showPage('page-online-name');
     });
 
-    nameForm.addEventListener('submit', (e) => {
+    // Device mode - name form
+    deviceNameForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        playerNames[1] = player1NameInput.value.trim() || 'Player 1';
-        playerNames[2] = player2NameInput.value.trim() || 'Player 2';
+        playerNames[1] = devicePlayer1NameInput.value.trim() || 'Player 1';
+        playerNames[2] = devicePlayer2NameInput.value.trim() || 'Player 2';
         gameSetupModal.classList.remove('show');
         startGame();
-    });    createGameButton.addEventListener('click', () => {
-        const playerName = onlinePlayerNameInput.value.trim() || 'Player';
-        createGameButton.disabled = true;
-        createGameButton.classList.add('btn-loading');
-        socket.emit('createGame', { playerName });
     });
 
-    joinForm.addEventListener('submit', (e) => {
+    // Online mode - name form
+    onlineNameForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        roomId = roomIdInput.value.trim();
-        const playerName = onlinePlayerNameInput.value.trim() || 'Player';
+        onlinePlayerName = onlinePlayerNameInput.value.trim() || 'Player';
+        showPage('page-online-join-create');
+    });
+
+    // Online mode - join/create selection
+    selectJoinButton.addEventListener('click', () => {
+        showPage('page-online-join');
+    });
+
+    selectCreateButton.addEventListener('click', () => {
+        const joinButton = selectCreateButton;
+        joinButton.disabled = true;
+        joinButton.classList.add('btn-loading');
+        socket.emit('createGame', { playerName: onlinePlayerName });
+    });
+
+    // Online mode - join game form
+    joinGameForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        roomId = joinRoomCodeInput.value.trim();
         if (roomId) {
-            const joinButton = joinForm.querySelector('button[type="submit"]');
+            const joinButton = joinGameForm.querySelector('button[type="submit"]');
             joinButton.disabled = true;
             joinButton.classList.add('btn-loading');
-            socket.emit('joinGame', { roomId, playerName });
+            socket.emit('joinGame', { roomId, playerName: onlinePlayerName });
         }
-    });    restartButton.addEventListener('click', () => {
+    });
+
+    restartButton.addEventListener('click', () => {
         if (gameMode === 'local') {
             startGame();
         }
-    });    // Rematch button event listener
+    });
+
+    // Rematch button event listener
     rematchButton.addEventListener('click', () => {
         if (rematchButton.disabled) return; // Prevent multiple requests
         socket.emit('requestRematch', { roomId });
         rematchButton.textContent = 'Waiting for opponent...';
         rematchButton.disabled = true;
-    });// Reaction buttons event listeners
+    });
+
+    // Reaction buttons event listeners
     reactionButtons.forEach(button => {
         button.addEventListener('click', () => {
             const reaction = button.dataset.reaction;
@@ -114,19 +189,20 @@ document.addEventListener('DOMContentLoaded', () => {
     declineRematchBtn.addEventListener('click', () => {
         hideRematchModal();
         socket.emit('respondToRematch', { roomId, accepted: false });
-    });// --- Socket.IO Event Handlers ---
+    });    // --- Socket.IO Event Handlers ---
     socket.on('gameCreated', (data) => {
         roomId = data.roomId;
         playerNumber = 1;
         playerNames = { 1: "You", 2: "Opponent" };
-        roomIdDisplay.querySelector('.code-value').textContent = roomId;
-        roomIdDisplay.classList.remove('hidden');
-        onlineLobby.querySelector('h2').textContent = "Game Created!";
+        waitingRoomCode.textContent = roomId;
+        showPage('page-online-waiting');
         
         // Reset button state
-        createGameButton.disabled = false;
-        createGameButton.classList.remove('btn-loading');
-    });    socket.on('gameStarted', (data) => {
+        selectCreateButton.disabled = false;
+        selectCreateButton.classList.remove('btn-loading');
+    });
+
+    socket.on('gameStarted', (data) => {
         if (!playerNumber) {
             playerNumber = 2;
         }
@@ -143,7 +219,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         gameSetupModal.classList.remove('show');
         startGame();
-    });socket.on('moveMade', (data) => {
+    });
+
+    socket.on('moveMade', (data) => {
         if (!isMyTurn) {
             handleColumnClick(data.col, true);
         }
@@ -151,13 +229,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('reactionReceived', (data) => {
         showReactionFeedback(data.reaction, false, data.playerName);
-    });    socket.on('rematchRequested', (data) => {
+    });
+
+    socket.on('rematchRequested', (data) => {
         showRematchModal(data.playerName);
-    });    socket.on('rematchAccepted', () => {
+    });
+
+    socket.on('rematchAccepted', () => {
         hideRematchModal();
         hideRematchUI();
         startGame();
-    });    socket.on('rematchDeclined', () => {
+    });
+
+    socket.on('rematchDeclined', () => {
         hideRematchModal();
         hideRematchUI();
         // Show a non-blocking notification instead of alert
@@ -171,20 +255,19 @@ document.addEventListener('DOMContentLoaded', () => {
             turnDisplay.classList.add('game-over');
             gameOver = true;
         }
-    });
-
-    socket.on('error', (message) => {
+    });    socket.on('error', (message) => {
         alert(`Error: ${message}`);
-        roomIdInput.value = '';
+        joinRoomCodeInput.value = '';
         
         // Reset button states
-        createGameButton.disabled = false;
-        createGameButton.classList.remove('btn-loading');
-        const joinButton = joinForm.querySelector('button[type="submit"]');
+        selectCreateButton.disabled = false;
+        selectCreateButton.classList.remove('btn-loading');
+        const joinButton = joinGameForm.querySelector('button[type="submit"]');
         if (joinButton) {
             joinButton.disabled = false;
             joinButton.classList.remove('btn-loading');
-        }    });
+        }
+    });
 
     // --- Core Game Functions ---
     function startGame() {
@@ -481,12 +564,23 @@ document.addEventListener('DOMContentLoaded', () => {
         rematchButton.textContent = '🔄 Play Again';
         rematchButton.disabled = false;
         rematchButton.classList.add('hidden');
-    }
-
-    // Show rematch button when game ends (for online games)
+    }    // Show rematch button when game ends (for online games)
     function showRematchButton() {
         if (gameMode === 'online') {
             rematchButton.classList.remove('hidden');
         }
     }
+    
+    // --- Initialize Modal Navigation ---
+    modalHistory.push('page-mode-selection');
+    showPage('page-mode-selection', false);
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+        if (gameSetupModal.classList.contains('show')) {
+            if (e.key === 'Escape' && modalHistory.length > 1) {
+                goBack();
+            }
+        }
+    });
 });

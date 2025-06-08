@@ -199,6 +199,22 @@ body {
 .modal-header {
     text-align: center;
     margin-bottom: var(--spacing-8);
+    position: relative;
+    padding-top: var(--spacing-12);
+}
+
+.back-button {
+    position: absolute;
+    left: 0;
+    top: var(--spacing-2);
+    z-index: 10;
+}
+
+.btn-back {
+    min-height: 36px;
+    padding: var(--spacing-2) var(--spacing-3);
+    font-size: var(--font-size-sm);
+    border-radius: var(--border-radius);
 }
 
 .modal-title {
@@ -208,11 +224,57 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    margin-top: var(--spacing-2);
     gap: var(--spacing-2);
 }
 
 .game-icon {
     font-size: var(--font-size-xl);
+}
+
+/* Modal Page System */
+.modal-page {
+    position: relative;
+    min-height: 200px;
+    opacity: 1;
+    transform: translateX(0);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.modal-page.hidden {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    opacity: 0;
+    transform: translateX(20px);
+    pointer-events: none;
+}
+
+/* Page-specific styles */
+#page-mode-selection h2,
+#page-device-names h2,
+#page-online-name h2,
+#page-online-join-create h2,
+#page-online-join h2,
+#page-online-waiting h2 {
+    text-align: center;
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    margin-bottom: var(--spacing-6);
+    color: var(--text-primary);
+}
+
+.join-create-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-4);
+}
+
+.waiting-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 /* Mode Selection */
@@ -233,6 +295,16 @@ body {
 .mode-btn {
     padding: var(--spacing-5);
     text-align: left;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-4);
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-blue-dark) 100%);
+    border: 2px solid transparent;
+    border-radius: var(--border-radius-lg);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    min-height: 80px;
+    position: relative;
+    overflow: hidden;
     justify-content: flex-start;
 }
 
@@ -240,11 +312,17 @@ body {
     font-size: var(--font-size-2xl);
 }
 
+.mode-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
 /* Form Styles */
 .player-form, .join-form {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-5);
+    min-height: 250px;
 }
 
 .input-group {
@@ -737,6 +815,19 @@ body {
     }
 }
 
+/* Enhanced modal transitions */
+.modal-page {
+    position: relative;
+    min-height: 200px;
+}
+
+.modal-page.hidden {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+}
+
 /* Focus styles for better accessibility */
 .column:focus-visible {
     outline: 3px solid var(--primary-blue);
@@ -1224,5 +1315,17 @@ body {
     
     .rematch-modal-content .modal-body p {
         color: #94a3b8;
+    }
+    
+    /* Dark mode improvements for back button */
+    .btn-back {
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        border-color: #475569;
+    }
+    
+    .btn-back:hover {
+        background: #334155;
+        border-color: #64748b;
     }
 }

@@ -11,10 +11,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔴</text></svg>">
 </head>
-<body>
-    <!-- The modal remains the same -->    <div id="game-setup-modal" class="modal-overlay show">
+<body>    <div id="game-setup-modal" class="modal-overlay show">
         <div class="modal-content">
             <div class="modal-header">
+                <div id="back-button" class="back-button hidden">
+                    <button class="btn btn-secondary btn-back">
+                        <span class="btn-icon">←</span>
+                        Back
+                    </button>
+                </div>
                 <h1 class="modal-title">
                     <span class="game-icon">🔴</span>
                     Connect Four Pro
@@ -22,17 +27,18 @@
                 </h1>
             </div>
             
-            <div id="mode-selection" class="mode-selection">
+            <!-- Page 1: Mode Selection -->
+            <div id="page-mode-selection" class="modal-page">
                 <h2>Choose Your Game Mode</h2>
                 <div class="mode-buttons">
-                    <button id="play-local-button" class="btn btn-primary mode-btn">
+                    <button id="select-device-button" class="btn btn-primary mode-btn">
                         <span class="btn-icon">📱</span>
                         <span class="btn-text">
-                            <strong>Local Play</strong>
+                            <strong>Device Play</strong>
                             <small>Same device</small>
                         </span>
                     </button>
-                    <button id="play-online-button" class="btn btn-primary mode-btn">
+                    <button id="select-online-button" class="btn btn-primary mode-btn">
                         <span class="btn-icon">🌐</span>
                         <span class="btn-text">
                             <strong>Online Play</strong>
@@ -42,22 +48,23 @@
                 </div>
             </div>
             
-            <div id="name-input-section" class="hidden">
+            <!-- Page 2: Device - Player Names -->
+            <div id="page-device-names" class="modal-page hidden">
                 <h2>Player Setup</h2>
-                <form id="name-form" class="player-form">
+                <form id="device-name-form" class="player-form">
                     <div class="input-group">
-                        <label for="player1-name">
+                        <label for="device-player1-name">
                             <span class="player-color player1-color"></span>
                             Player 1 (Red)
                         </label>
-                        <input type="text" id="player1-name" value="Player 1" required>
+                        <input type="text" id="device-player1-name" value="Player 1" required>
                     </div>
                     <div class="input-group">
-                        <label for="player2-name">
+                        <label for="device-player2-name">
                             <span class="player-color player2-color"></span>
                             Player 2 (Yellow)
                         </label>
-                        <input type="text" id="player2-name" value="Player 2" required>
+                        <input type="text" id="device-player2-name" value="Player 2" required>
                     </div>
                     <button type="submit" class="btn btn-primary">
                         <span class="btn-icon">🎮</span>
@@ -65,45 +72,72 @@
                     </button>
                 </form>
             </div>
-              <div id="online-lobby" class="hidden">
-                <h2>Online Lobby</h2>
-                <div class="lobby-content">
-                    <div id="online-name-input" class="name-input-section">
-                        <div class="input-group">
-                            <label for="online-player-name">Your Name</label>
-                            <input type="text" id="online-player-name" placeholder="Enter your name" value="Player" required>
-                        </div>
+            
+            <!-- Page 3: Online - Your Name -->
+            <div id="page-online-name" class="modal-page hidden">
+                <h2>Enter Your Name</h2>
+                <form id="online-name-form" class="player-form">
+                    <div class="input-group">
+                        <label for="online-player-name">Your Name</label>
+                        <input type="text" id="online-player-name" placeholder="Enter your name" value="Player" required>
                     </div>
-                    
-                    <button id="create-game-button" class="btn btn-primary">
-                        <span class="btn-icon">➕</span>
-                        Create New Game
+                    <button type="submit" class="btn btn-primary">
+                        <span class="btn-icon">➡️</span>
+                        Next
                     </button>
-                    
-                    <div class="or-divider">
-                        <span>OR</span>
+                </form>
+            </div>
+            
+            <!-- Page 4: Online - Join or Create -->
+            <div id="page-online-join-create" class="modal-page hidden">
+                <h2>Join or Create Game</h2>
+                <div class="join-create-buttons">
+                    <button id="select-join-button" class="btn btn-primary mode-btn">
+                        <span class="btn-icon">🔗</span>
+                        <span class="btn-text">
+                            <strong>Join Game</strong>
+                            <small>Enter room code</small>
+                        </span>
+                    </button>
+                    <button id="select-create-button" class="btn btn-primary mode-btn">
+                        <span class="btn-icon">➕</span>
+                        <span class="btn-text">
+                            <strong>Create Game</strong>
+                            <small>Get room code</small>
+                        </span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Page 5: Online - Join Room -->
+            <div id="page-online-join" class="modal-page hidden">
+                <h2>Join Game</h2>
+                <form id="join-game-form" class="player-form">
+                    <div class="input-group">
+                        <label for="join-room-code">Enter Game Code</label>
+                        <input type="text" id="join-room-code" placeholder="e.g., aB1cDe" required>
                     </div>
-                    
-                    <form id="join-form" class="join-form">
-                        <div class="input-group">
-                            <label for="room-id-input">Enter Game Code</label>
-                            <input type="text" id="room-id-input" placeholder="e.g., aB1cDe" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary">
-                            <span class="btn-icon">🔗</span>
-                            Join Game
-                        </button>
-                    </form>
-                    
-                    <div id="room-id-display" class="room-display hidden">
+                    <button type="submit" class="btn btn-primary">
+                        <span class="btn-icon">🔗</span>
+                        Join Game
+                    </button>
+                </form>
+            </div>
+            
+            <!-- Page 6: Online - Waiting Room -->
+            <div id="page-online-waiting" class="modal-page hidden">
+                <h2>Game Created!</h2>
+                <div class="waiting-content">
+                    <div class="room-display">
                         <div class="waiting-message">
                             <span class="loading-dots">Waiting for opponent</span>
                         </div>
                         <div class="room-code">
                             <span class="code-label">Share this code:</span>
-                            <strong class="code-value"></strong>
+                            <strong id="waiting-room-code" class="code-value"></strong>
                         </div>
-                    </div>                </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
