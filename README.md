@@ -158,13 +158,13 @@ To play across devices on the same network:
 
 ### Cloud Deployment
 
-#### 🚀 Render.com (Recommended)
-Render.com is perfect for hosting Node.js applications with WebSocket support. It's free for hobby projects and provides automatic SSL certificates.
+#### 🚀 Glitch.com (Recommended)
+Glitch.com is perfect for hosting Node.js applications with WebSocket support. It's free for hobby projects and provides instant deployment with live editing capabilities.
 
 **Step-by-Step Deployment:**
 
 1. **Prepare Your Repository**
-   - Ensure your code is pushed to GitHub, GitLab, or Bitbucket
+   - Ensure your code is pushed to GitHub
    - Make sure `package.json` includes the start script:
      ```json
      {
@@ -174,46 +174,46 @@ Render.com is perfect for hosting Node.js applications with WebSocket support. I
      }
      ```
 
-2. **Deploy on Render**
-   - Visit [render.com](https://render.com) and sign up/login
-   - Click "New +" → "Web Service"
-   - Connect your GitHub/GitLab account
-   - Select your Connect Four repository
+2. **Deploy on Glitch**
+   - Visit [glitch.com](https://glitch.com) and sign up/login
+   - Click "New Project" → "Import from GitHub"
+   - Connect your GitHub account
+   - Enter your Connect Four repository URL
 
-3. **Configure the Service**
+3. **Configure the Project**
    ```
-   Name: connect-four-pro (or your preferred name)
-   Region: Choose closest to your users
-   Branch: main (or your default branch)
-   Runtime: Node
-   Build Command: npm install
-   Start Command: npm start
+   Project Name: connect-four-pro (or your preferred name)
+   Description: Modern Connect Four game with real-time multiplayer
    ```
 
 4. **Environment Variables** (if needed)
+   - Click on ".env" in the file explorer
+   - Add any required environment variables:
    ```
    NODE_ENV=production
-   PORT=10000 (Render automatically sets this)
    ```
 
 5. **Deploy**
-   - Click "Create Web Service"
-   - Render will automatically build and deploy your app
-   - You'll get a free `.onrender.com` URL
+   - Glitch automatically builds and deploys your app
+   - Your app will be live immediately
+   - You'll get a free `.glitch.me` URL
 
-**Your app will be available at:** `https://your-app-name.onrender.com`
+**Your app will be available at:** `https://your-project-name.glitch.me`
 
-**Render.com Benefits:**
+**Glitch.com Benefits:**
 - ✅ Free tier available (hobby projects)
 - ✅ Automatic SSL certificates
 - ✅ WebSocket support (perfect for Socket.IO)
-- ✅ Automatic deployments on git push
-- ✅ Custom domains supported
-- ✅ Built-in monitoring and logs
+- ✅ Live editing and instant deployment
+- ✅ GitHub sync for automatic updates
+- ✅ Built-in code editor and terminal
+- ✅ Easy collaboration and remixing
 
-> 📖 **Detailed Guide**: See [RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md) for complete step-by-step instructions with screenshots and troubleshooting tips.
+> 📖 **Live Demo**: The game is currently deployed and playable at your Glitch project URL.
 
-#### Heroku
+#### Alternative Deployment Options
+
+**Heroku**
 ```bash
 # Install Heroku CLI
 npm install -g heroku
@@ -226,11 +226,18 @@ heroku create your-connect-four-app
 git push heroku main
 ```
 
-#### Railway
+**Railway**
 1. Visit [railway.app](https://railway.app)
 2. Connect GitHub and select repository
 3. Railway auto-detects Node.js and deploys
 4. Automatic SSL and custom domains available
+
+**Render.com**
+1. Visit [render.com](https://render.com) and sign up/login
+2. Click "New +" → "Web Service"
+3. Connect your GitHub account and select repository
+4. Configure build and start commands
+5. Deploy with automatic SSL and WebSocket support
 
 #### VPS/Cloud Server
 ```bash

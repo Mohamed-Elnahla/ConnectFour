@@ -6,7 +6,21 @@ const { nanoid } = require('nanoid');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    },
+    // Ensure transport fallback for iOS compatibility
+    transports: ['websocket', 'polling'],
+    // iOS Safari sometimes needs longer timeouts
+    pingTimeout: 60000,
+    pingInterval: 25000,
+    // Allow upgrade retries for iOS
+    upgradeTimeout: 30000,
+    // Improve iOS connection stability
+    allowEIO3: true
+});
 
 const PORT = process.env.PORT || 3000;
 
@@ -15,12 +29,50 @@ app.use(express.static('public'));
 
 const rooms = {};
 
+// Room cleanup mechanism for iOS stability
+setInterval(() => {
+    const now = Date.now();
+    const ROOM_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+    
+    for (const roomId in rooms) {
+        const room = rooms[roomId];
+        if (now - room.lastActivity > ROOM_TIMEOUT && !room.gameInProgress) {
+            console.log(`Cleaning up stale room: ${roomId}`);
+            delete rooms[roomId];
+        }
+    }
+}, 5 * 60 * 1000); // Check every 5 minutes
+
+// Debug endpoint for room status (helpful for iOS troubleshooting)
+app.get('/api/rooms', (req, res) => {
+    const roomStatus = {};
+    for (const roomId in rooms) {
+        roomStatus[roomId] = {
+            playerCount: rooms[roomId].players.length,
+            gameInProgress: rooms[roomId].gameInProgress,
+            createdAt: rooms[roomId].createdAt,
+            lastActivity: rooms[roomId].lastActivity
+        };
+    }
+    res.json(roomStatus);
+});
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    res.json({ 
+        status: 'healthy', 
+        rooms: Object.keys(rooms).length,
+        timestamp: Date.now() 
+    });
+});
+
 io.on('connection', (socket) => {
     console.log(`User connected: ${socket.id}`);
-    
-    // Create a new game room
+      // Create a new game room
     socket.on('createGame', ({ playerName }) => {
         const roomId = nanoid(6); // Generate a 6-character unique ID
+        
+        // Enhanced room creation with iOS compatibility
         rooms[roomId] = {
             players: [{ id: socket.id, playerNumber: 1, name: playerName || 'Player 1' }],
             gameBoard: null,
@@ -28,30 +80,66 @@ io.on('connection', (socket) => {
             nextStarter: 1, // Who starts the next game (1 or 2)
             lastWinner: null, // Track the winner of the last game
             scores: { 1: 0, 2: 0 }, // Track wins for each player
+            createdAt: Date.now(), // Track room creation time
+            lastActivity: Date.now() // Track last activity for cleanup
         };
+        
         socket.join(roomId);
-        socket.emit('gameCreated', { roomId });
-        console.log(`Room created: ${roomId} by ${socket.id} (${playerName})`);
+        
+        // Send confirmation with additional room info for iOS debugging
+        socket.emit('gameCreated', { 
+            roomId,
+            playerCount: rooms[roomId].players.length,
+            timestamp: Date.now()
+        });
+        
+        console.log(`Room created: ${roomId} by ${socket.id} (${playerName}) - iOS compatible`);
     });
 
     // Join an existing game room
     socket.on('joinGame', ({ roomId, playerName }) => {
+        console.log(`Join attempt: Room ${roomId} by ${socket.id} (${playerName})`);
+        
         const room = rooms[roomId];
-        if (room && room.players.length === 1) {
-            room.players.push({ id: socket.id, playerNumber: 2, name: playerName || 'Player 2' });
-            socket.join(roomId);
-            console.log(`User ${socket.id} (${playerName}) joined room ${roomId}`);            // Both players are in, start the game
+        
+        // Enhanced validation for iOS compatibility
+        if (!room) {
+            console.log(`Room ${roomId} does not exist`);
+            socket.emit('error', 'Room does not exist.');
+            return;
+        }
+        
+        if (room.players.length >= 2) {
+            console.log(`Room ${roomId} is full (${room.players.length} players)`);
+            socket.emit('error', 'Room is full.');
+            return;
+        }
+        
+        if (room.players.length === 1) {
+            // Update room activity
+            room.lastActivity = Date.now();
+            
+            room.players.push({ id: socket.id, playerNumber: 2, name: playerName || 'Player 2' });            socket.join(roomId);
+            
+            console.log(`User ${socket.id} (${playerName}) joined room ${roomId} - iOS compatible`);
+            
+            // Both players are in, start the game
             room.gameInProgress = true;
+            
+            // Enhanced game start event for iOS compatibility
             io.to(roomId).emit('gameStarted', { 
                 roomId,
                 players: room.players,
                 nextStarter: room.nextStarter,
-                scores: room.scores
+                scores: room.scores,
+                timestamp: Date.now(),
+                playerCount: room.players.length
             });
         } else {
-            socket.emit('error', 'Room is full or does not exist.');
+            console.log(`Unexpected room state for ${roomId}: ${room.players.length} players`);
+            socket.emit('error', 'Unexpected room state.');
         }
-    });    // Handle a player's move
+    });// Handle a player's move
     socket.on('makeMove', ({ roomId, col }) => {
         // Broadcast the move to the other player in the room
         socket.to(roomId).emit('moveMade', { col });

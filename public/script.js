@@ -1,6 +1,84 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- Socket.IO Client Setup ---
-    const socket = io();    // --- DOM Elements ---
+    const socket = io({
+        // Enable transport fallback for iOS compatibility
+        transports: ['websocket', 'polling'],
+        // iOS Safari needs more aggressive reconnection
+        forceNew: false,
+        reconnection: true,
+        timeout: 20000,
+        // iOS benefits from longer intervals
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        maxReconnectionAttempts: 5,
+        // Force polling first on iOS to avoid WebSocket issues
+        upgrade: true,
+        // iOS Safari sometimes needs this
+        autoConnect: true,
+        // Additional iOS compatibility options
+        withCredentials: false
+    });
+
+    // iOS-specific connection monitoring and debugging
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    
+    if (isIOS) {
+        console.log('iOS device detected - enabling enhanced connection monitoring');
+        
+        // Monitor connection events for iOS debugging
+        socket.on('connect', () => {
+            console.log('iOS: Socket connected with transport:', socket.io.engine.transport.name);
+        });
+        
+        socket.on('disconnect', (reason) => {
+            console.log('iOS: Socket disconnected. Reason:', reason);
+        });
+        
+        socket.io.on('error', (error) => {
+            console.error('iOS: Socket.IO error:', error);
+        });
+        
+        // Monitor transport upgrades
+        socket.io.engine.on('upgrade', () => {
+            console.log('iOS: Transport upgraded to:', socket.io.engine.transport.name);
+        });
+        
+        socket.io.engine.on('upgradeError', (error) => {
+            console.error('iOS: Transport upgrade error:', error);
+        });
+    }
+
+    // iOS-specific room joining enhancement
+    let roomJoinRetryCount = 0;
+    const MAX_ROOM_JOIN_RETRIES = 3;
+    
+    function retryRoomJoin(roomId, playerName) {
+        if (isIOS && roomJoinRetryCount < MAX_ROOM_JOIN_RETRIES) {
+            roomJoinRetryCount++;
+            console.log(`iOS: Retrying room join (attempt ${roomJoinRetryCount}/${MAX_ROOM_JOIN_RETRIES})`);
+            
+            setTimeout(() => {
+                socket.emit('joinGame', { roomId, playerName });
+            }, 1000 * roomJoinRetryCount); // Increasing delay
+        }
+    }
+
+    // iOS-specific room creation retry logic
+    let roomCreateRetryCount = 0;
+    
+    function retryRoomCreate(playerName) {
+        if (isIOS && roomCreateRetryCount < MAX_ROOM_JOIN_RETRIES) {
+            roomCreateRetryCount++;
+            console.log(`iOS: Retrying room creation (attempt ${roomCreateRetryCount}/${MAX_ROOM_JOIN_RETRIES})`);
+            
+            setTimeout(() => {
+                socket.emit('createGame', { playerName });
+            }, 1000 * roomCreateRetryCount);
+        }
+    }
+
+    // --- DOM Elements ---
     const boardElement = document.getElementById('game-board');
     const winLineContainer = document.getElementById('win-line-container');
     const turnDisplay = document.getElementById('turn-display');
@@ -9,7 +87,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Modal & Navigation Elements
     const gameSetupModal = document.getElementById('game-setup-modal');
     const backButton = document.getElementById('back-button');
-      // Modal Pages
+    
+    // Modal Pages
     const pageModeSelection = document.getElementById('page-mode-selection');
     const pageDeviceNames = document.getElementById('page-device-names');
     const pageOnlineName = document.getElementById('page-online-name');
@@ -26,7 +105,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const deviceNameForm = document.getElementById('device-name-form');
     const devicePlayer1NameInput = document.getElementById('device-player1-name');
     const devicePlayer2NameInput = document.getElementById('device-player2-name');
-      // Online Mode Elements
+    
+    // Online Mode Elements
     const onlineNameForm = document.getElementById('online-name-form');
     const onlinePlayerNameInput = document.getElementById('online-player-name');
     const colorOptions = document.querySelectorAll('.color-option');
@@ -41,7 +121,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const onlineControls = document.getElementById('online-controls');
     const rematchButton = document.getElementById('rematch-button');
     const reactionButtons = document.querySelectorAll('.reaction-btn');
-    const reactionOverlay = document.getElementById('reaction-overlay');    // Rematch Modal Elements
+    const reactionOverlay = document.getElementById('reaction-overlay');
+    
+    // Rematch Modal Elements
     const rematchModal = document.getElementById('rematch-modal');
     const rematchTitle = document.getElementById('rematch-title');
     const rematchMessage = document.getElementById('rematch-message');
@@ -61,16 +143,32 @@ document.addEventListener('DOMContentLoaded', () => {
     let board = [];
     let currentPlayer;
     let gameOver = false;
-    let playerNames = { 1: 'Player 1', 2: 'Player 2' };    // -- Online Game State --
+    let playerNames = { 1: 'Player 1', 2: 'Player 2' };
+    
+    // -- Online Game State --
     let gameMode = 'local';
     let playerNumber;
     let roomId;
     let isMyTurn;
-      // -- Modal Navigation State --
+    
+    // -- Modal Navigation State --
     let currentPage = 'page-mode-selection';
     let onlinePlayerName = '';
     let selectedPlayerColor = { main: '#ef4444', light: '#f87171' }; // Default red
-    let modalHistory = [];    // --- Modal Navigation Functions ---
+    let modalHistory = [];
+
+    // --- Disconnection Warning System ---
+    let disconnectionWarning = null;
+    let disconnectionCountdown = null;
+    let reconnectionAttempted = false;
+
+    // --- Reconnection Logic ---
+    let reconnectionTimeout = null;
+    let reconnectionAttempts = 0;
+    const MAX_RECONNECTION_ATTEMPTS = 3;
+    const RECONNECTION_DELAY = 2000; // 2 seconds delay before attempting to reconnect
+
+    // --- Modal Navigation Functions ---
     function showPage(pageId, addToHistory = true) {
         // Hide all pages
         [pageModeSelection, pageDeviceNames, pageOnlineName, pageOnlineColor, pageOnlineJoinCreate, pageOnlineJoin, pageOnlineWaiting].forEach(page => {
@@ -103,10 +201,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const previousPage = modalHistory[modalHistory.length - 1];
             showPage(previousPage, false);
         }
-    }    // --- Event Listeners ---
+    }
+
+    // --- Event Listeners ---
     
     // Back button
-    backButton.addEventListener('click', goBack);      // Mode selection
+    backButton.addEventListener('click', goBack);
+    
+    // Mode selection
     selectDeviceButton.addEventListener('click', () => {
         // Clear any ongoing reconnection attempts when switching to local mode
         clearReconnectionState();
@@ -125,7 +227,8 @@ document.addEventListener('DOMContentLoaded', () => {
     deviceNameForm.addEventListener('submit', (e) => {
         e.preventDefault();
         playerNames[1] = devicePlayer1NameInput.value.trim() || 'Player 1';
-        playerNames[2] = devicePlayer2NameInput.value.trim() || 'Player 2';        gameSetupModal.classList.remove('show');
+        playerNames[2] = devicePlayer2NameInput.value.trim() || 'Player 2';
+        gameSetupModal.classList.remove('show');
         startGame();
     });
 
@@ -145,6 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const joinButton = selectCreateButton;
         joinButton.disabled = true;
         joinButton.classList.add('btn-loading');
+        roomCreateRetryCount = 0; // Reset retry count
         socket.emit('createGame', { playerName: onlinePlayerName });
     });
 
@@ -156,6 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const joinButton = joinGameForm.querySelector('button[type="submit"]');
             joinButton.disabled = true;
             joinButton.classList.add('btn-loading');
+            roomJoinRetryCount = 0; // Reset retry count
             socket.emit('joinGame', { roomId, playerName: onlinePlayerName });
         }
     });
@@ -187,7 +292,8 @@ document.addEventListener('DOMContentLoaded', () => {
     acceptRematchBtn.addEventListener('click', () => {
         hideRematchModal();
         socket.emit('respondToRematch', { roomId, accepted: true });
-        rematchButton.textContent = 'Waiting for opponent...';        rematchButton.disabled = true;
+        rematchButton.textContent = 'Waiting for opponent...';
+        rematchButton.disabled = true;
     });
 
     declineRematchBtn.addEventListener('click', () => {
@@ -240,8 +346,11 @@ document.addEventListener('DOMContentLoaded', () => {
         showPage('page-online-waiting');
         
         // Reset button state
-        selectCreateButton.disabled = false;        selectCreateButton.classList.remove('btn-loading');
-    });    socket.on('gameStarted', (data) => {
+        selectCreateButton.disabled = false;
+        selectCreateButton.classList.remove('btn-loading');
+    });
+
+    socket.on('gameStarted', (data) => {
         if (!playerNumber) {
             playerNumber = 2;
         }
@@ -249,7 +358,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Set player names from server data
         const player1 = data.players.find(p => p.playerNumber === 1);
         const player2 = data.players.find(p => p.playerNumber === 2);
-          if (playerNumber === 1) {
+        
+        if (playerNumber === 1) {
             playerNames = { 1: player1.name, 2: player2.name };
         } else {
             playerNames = { 1: player1.name, 2: player2.name };
@@ -277,8 +387,11 @@ document.addEventListener('DOMContentLoaded', () => {
         showReactionFeedback(data.reaction, false, data.playerName);
     });
 
-    socket.on('rematchRequested', (data) => {        showRematchModal(data.playerName);
-    });    socket.on('rematchAccepted', (data) => {
+    socket.on('rematchRequested', (data) => {
+        showRematchModal(data.playerName);
+    });
+
+    socket.on('rematchAccepted', (data) => {
         hideRematchModal();
         hideRematchUI();
         
@@ -296,7 +409,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Show a non-blocking notification instead of alert
         showNotification('Opponent declined the rematch.', 'info');
     });
-      socket.on('opponentDisconnected', (data) => {
+
+    socket.on('opponentDisconnected', (data) => {
         if (!gameOver) {
             // Show a countdown notification instead of immediately declaring victory
             showDisconnectionWarning(data.playerName, data.gracePeriod);
@@ -314,7 +428,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Emit game end event for winner tracking
             socket.emit('gameEnded', { roomId, winner: data.winner });
             
-            if (gameMode === 'online') {                showRematchButton();
+            if (gameMode === 'online') {
+                showRematchButton();
             }
         }
     });
@@ -337,11 +452,31 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         showNotification('Reconnected successfully! Game continues.', 'success');
         
-        // Clear reconnection state - we successfully reconnected        clearReconnectionState();
+        // Clear reconnection state - we successfully reconnected
+        clearReconnectionState();
     });
 
     socket.on('error', (message) => {
-        alert(`Error: ${message}`);
+        // Enhanced error handling for iOS
+        console.error('Socket error:', message);
+        
+        if (isIOS) {
+            // Check if it's a room-related error and retry if appropriate
+            if (message.includes('does not exist') || message.includes('full')) {
+                if (roomId && roomJoinRetryCount < MAX_ROOM_JOIN_RETRIES) {
+                    console.log('iOS: Room error detected, attempting retry...');
+                    retryRoomJoin(roomId, onlinePlayerName);
+                    return;
+                }
+            } else if (message.includes('create') && roomCreateRetryCount < MAX_ROOM_JOIN_RETRIES) {
+                console.log('iOS: Room creation error detected, attempting retry...');
+                retryRoomCreate(onlinePlayerName);
+                return;
+            }
+        }
+        
+        // Show error to user
+        showNotification(`Error: ${message}`, 'error');
         joinRoomCodeInput.value = '';
         
         // Reset button states
@@ -350,7 +485,55 @@ document.addEventListener('DOMContentLoaded', () => {
         const joinButton = joinGameForm.querySelector('button[type="submit"]');
         if (joinButton) {
             joinButton.disabled = false;
-            joinButton.classList.remove('btn-loading');        }
+            joinButton.classList.remove('btn-loading');
+        }
+    });
+
+    // Enhanced disconnect handler for iOS
+    socket.on('disconnect', () => {
+        if (gameMode === 'online' && roomId && !gameOver) {
+            console.log('Disconnected from server. Will attempt to reconnect...');
+            showNotification('Connection lost. Will attempt to reconnect...', 'error');
+            reconnectionAttempted = true;
+            reconnectionAttempts = 0;
+            
+            // Clear any existing reconnection timeout
+            if (reconnectionTimeout) {
+                clearTimeout(reconnectionTimeout);
+            }
+        }
+    });
+
+    // Enhanced connect handler for iOS
+    socket.on('connect', () => {
+        if (reconnectionAttempted && gameMode === 'online' && roomId && onlinePlayerName) {
+            console.log('Socket connected. Waiting before attempting to rejoin game...');
+            
+            // Clear any existing timeout
+            if (reconnectionTimeout) {
+                clearTimeout(reconnectionTimeout);
+            }
+            
+            // Wait a bit for the connection to stabilize before attempting reconnection
+            reconnectionTimeout = setTimeout(() => {
+                attemptReconnection();
+            }, RECONNECTION_DELAY);
+        }
+    });
+
+    // Handle reconnection failure from server
+    socket.on('reconnectionFailed', (data) => {
+        console.log('Reconnection failed:', data.message);
+        if (reconnectionAttempts < MAX_RECONNECTION_ATTEMPTS) {
+            showNotification(`Reconnection failed: ${data.message}. Retrying...`, 'error');
+            // Try again after a delay
+            reconnectionTimeout = setTimeout(() => {
+                attemptReconnection();
+            }, 2000);
+        } else {
+            showNotification('Failed to reconnect to the game. Please refresh the page.', 'error');
+            clearReconnectionState();
+        }
     });
 
     // --- Core Game Functions ---
@@ -368,7 +551,9 @@ document.addEventListener('DOMContentLoaded', () => {
         board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
         
         turnDisplay.classList.remove('game-over');
-        restartButton.classList.add('hidden');        // Show/hide appropriate controls based on game mode
+        restartButton.classList.add('hidden');
+        
+        // Show/hide appropriate controls based on game mode
         if (gameMode === 'online') {
             onlineControls.classList.remove('hidden');
             rematchButton.classList.add('hidden');
@@ -376,7 +561,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             onlineControls.classList.add('hidden');
             hideScoreboard();
-        }createBoard();
+        }
+        
+        createBoard();
         updateTurnDisplay();
     }
 
@@ -398,7 +585,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 cell.dataset.col = c;
                 column.appendChild(cell);
             }
-            boardElement.appendChild(column); // Changed from prepend to append
+            boardElement.appendChild(column);
         }
         updateColumnStates(); // Initialize column states
     }
@@ -439,9 +626,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return -1;
     }
 
-    /**
-     * CORRECTED: Now uses a reliable data-attribute selector.
-     */
     function placePiece(row, col) {
         const piece = document.createElement('div');
         piece.classList.add('piece', currentPlayer === 1 ? 'player1' : 'player2');
@@ -449,7 +633,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (targetCell) {
             targetCell.appendChild(piece);
         }
-    }    function switchPlayer() {
+    }
+
+    function switchPlayer() {
         currentPlayer = currentPlayer === 1 ? 2 : 1;
         updateTurnDisplay();
     }
@@ -474,16 +660,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const directions = [{ dr: 0, dc: 1 }, { dr: 1, dc: 0 }, { dr: 1, dc: 1 }, { dr: 1, dc: -1 }];
         for (const { dr, dc } of directions) {
             const line = [{ row, col }];
-            for (let i = 1; i < 4; i++) { const r = row + i * dr, c = col + i * dc; if (r >= 0 && r < ROWS && c >= 0 && c < COLS && board[r][c] === player) { line.push({ row: r, col: c }); } else break; }
-            for (let i = 1; i < 4; i++) { const r = row - i * dr, c = col - i * dc; if (r >= 0 && r < ROWS && c >= 0 && c < COLS && board[r][c] === player) { line.push({ row: r, col: c }); } else break; }
+            for (let i = 1; i < 4; i++) { 
+                const r = row + i * dr, c = col + i * dc; 
+                if (r >= 0 && r < ROWS && c >= 0 && c < COLS && board[r][c] === player) { 
+                    line.push({ row: r, col: c }); 
+                } else break; 
+            }
+            for (let i = 1; i < 4; i++) { 
+                const r = row - i * dr, c = col - i * dc; 
+                if (r >= 0 && r < ROWS && c >= 0 && c < COLS && board[r][c] === player) { 
+                    line.push({ row: r, col: c }); 
+                } else break; 
+            }
             if (line.length >= 4) return line;
         }
         return null;
     }
     
-    /**
-     * CORRECTED: Now uses a reliable data-attribute selector.
-     */
     function highlightWinningPieces(winningLine) {
         for (const { row, col } of winningLine) {
             const cell = boardElement.querySelector(`.cell[data-row='${row}'][data-col='${col}']`);
@@ -492,9 +685,6 @@ document.addEventListener('DOMContentLoaded', () => {
         drawWinningLine(winningLine);
     }
     
-    /**
-     * CORRECTED: Now uses a reliable data-attribute selector.
-     */
     function drawWinningLine(winningLine) {
         winningLine.sort((a, b) => (a.row - b.row) || (a.col - b.col));
         const startPiece = winningLine[0];
@@ -530,7 +720,8 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => { line.style.transform = `rotate(${angle}deg) scaleX(1)`; }, 50);
     }
 
-    function isBoardFull() {        return board.every(row => row.every(cell => cell !== 0));
+    function isBoardFull() {
+        return board.every(row => row.every(cell => cell !== 0));
     }
 
     function endGame(winner) {
@@ -577,17 +768,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     column.classList.remove('full');
                 }
-            }        }
-    }
-
-    // Debug function to log column states (can be removed in production)
-    function debugColumnStates() {
-        console.log('Column states:');
-        for (let c = 0; c < COLS; c++) {
-            const column = boardElement.querySelector(`.column[data-col='${c}']`);
-            const isFull = column?.classList.contains('full');
-            const availableRow = findAvailableRow(c);
-            console.log(`Column ${c}: Full=${isFull}, AvailableRow=${availableRow}`);
+            }
         }
     }
 
@@ -620,7 +801,9 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
             reactionElement.remove();
         }, 2000);
-    }    // --- Rematch System Functions ---
+    }
+
+    // --- Rematch System Functions ---
     function showRematchModal(playerName) {
         rematchTitle.textContent = 'Rematch Request';
         rematchMessage.textContent = `${playerName} wants to play again!`;
@@ -642,7 +825,7 @@ document.addEventListener('DOMContentLoaded', () => {
             position: fixed;
             top: 20px;
             right: 20px;
-            background: ${type === 'info' ? '#3498db' : '#e74c3c'};
+            background: ${type === 'info' ? '#3498db' : type === 'success' ? '#27ae60' : '#e74c3c'};
             color: white;
             padding: 15px 20px;
             border-radius: 5px;
@@ -664,31 +847,16 @@ document.addEventListener('DOMContentLoaded', () => {
         rematchButton.textContent = '🔄 Play Again';
         rematchButton.disabled = false;
         rematchButton.classList.add('hidden');
-    }    // Show rematch button when game ends (for online games)
+    }
+
+    // Show rematch button when game ends (for online games)
     function showRematchButton() {
         if (gameMode === 'online') {
             rematchButton.classList.remove('hidden');
         }
     }
-    
-    // --- Initialize Modal Navigation ---
-    modalHistory.push('page-mode-selection');
-    showPage('page-mode-selection', false);
 
-    // Keyboard navigation
-    document.addEventListener('keydown', (e) => {
-        if (gameSetupModal.classList.contains('show')) {
-            if (e.key === 'Escape' && modalHistory.length > 1) {
-                goBack();
-            }
-        }
-    });
-    
     // --- Disconnection Warning System ---
-    let disconnectionWarning = null;
-    let disconnectionCountdown = null;
-    let reconnectionAttempted = false;
-
     function showDisconnectionWarning(playerName, gracePeriod) {
         hideDisconnectionWarning(); // Clear any existing warning
         
@@ -758,41 +926,7 @@ document.addEventListener('DOMContentLoaded', () => {
             disconnectionCountdown = null;
         }
         reconnectionAttempted = false;
-    }    // --- Reconnection Logic ---
-    let reconnectionTimeout = null;
-    let reconnectionAttempts = 0;
-    const MAX_RECONNECTION_ATTEMPTS = 3;
-    const RECONNECTION_DELAY = 2000; // 2 seconds delay before attempting to reconnect
-
-    socket.on('disconnect', () => {
-        if (gameMode === 'online' && roomId && !gameOver) {
-            console.log('Disconnected from server. Will attempt to reconnect...');
-            showNotification('Connection lost. Will attempt to reconnect...', 'error');
-            reconnectionAttempted = true;
-            reconnectionAttempts = 0;
-            
-            // Clear any existing reconnection timeout
-            if (reconnectionTimeout) {
-                clearTimeout(reconnectionTimeout);
-            }
-        }
-    });
-
-    socket.on('connect', () => {
-        if (reconnectionAttempted && gameMode === 'online' && roomId && onlinePlayerName) {
-            console.log('Socket connected. Waiting before attempting to rejoin game...');
-            
-            // Clear any existing timeout
-            if (reconnectionTimeout) {
-                clearTimeout(reconnectionTimeout);
-            }
-            
-            // Wait a bit for the connection to stabilize before attempting reconnection
-            reconnectionTimeout = setTimeout(() => {
-                attemptReconnection();
-            }, RECONNECTION_DELAY);
-        }
-    });
+    }
 
     function attemptReconnection() {
         if (reconnectionAttempts < MAX_RECONNECTION_ATTEMPTS && gameMode === 'online' && roomId && onlinePlayerName) {
@@ -826,20 +960,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Handle reconnection failure from server
-    socket.on('reconnectionFailed', (data) => {
-        console.log('Reconnection failed:', data.message);
-        if (reconnectionAttempts < MAX_RECONNECTION_ATTEMPTS) {
-            showNotification(`Reconnection failed: ${data.message}. Retrying...`, 'error');
-            // Try again after a delay
-            reconnectionTimeout = setTimeout(() => {
-                attemptReconnection();
-            }, 2000);
-        } else {
-            showNotification('Failed to reconnect to the game. Please refresh the page.', 'error');
-            clearReconnectionState();
-        }    });
-    
     // --- Color Management Functions ---
     function applyPlayerColor() {
         // Only apply color in online mode and if a color is selected
@@ -914,7 +1034,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Default fallback - if no pair found, return a default opponent color
         return myColor.main === '#ef4444' ? 
             { main: '#eab308', light: '#facc15' } : // If red, return yellow
-            { main: '#ef4444', light: '#f87171' };   // Otherwise return red    }    function resetPlayerColors() {
+            { main: '#ef4444', light: '#f87171' };   // Otherwise return red
+    }
+
+    function resetPlayerColors() {
         // Reset to default colors
         document.documentElement.style.removeProperty('--player1-color');
         document.documentElement.style.removeProperty('--player1-light');
@@ -938,9 +1061,6 @@ document.addEventListener('DOMContentLoaded', () => {
             continueColorBtn.disabled = false;
         }
     }
-
-    // Call the initialization function
-    initializeColorSelection();
 
     // --- Scoreboard System Functions ---
     function showScoreboard() {
@@ -983,4 +1103,20 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+
+    // --- Initialize Modal Navigation ---
+    modalHistory.push('page-mode-selection');
+    showPage('page-mode-selection', false);
+
+    // Call the color initialization function
+    initializeColorSelection();
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+        if (gameSetupModal.classList.contains('show')) {
+            if (e.key === 'Escape' && modalHistory.length > 1) {
+                goBack();
+            }
+        }
+    });
 });
