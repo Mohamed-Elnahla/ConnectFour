@@ -1525,3 +1525,196 @@ body {
         background: rgba(37, 99, 235, 0.1);
     }
 }
+
+/* ===== SCOREBOARD STYLES ===== */
+.scoreboard {
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+    border: 2px solid var(--primary-blue);
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-4);
+    margin: var(--spacing-4) 0;
+    box-shadow: var(--shadow-lg);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.scoreboard.hidden {
+    display: none !important;
+}
+
+.scoreboard-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--primary-blue);
+    text-align: center;
+    margin: 0 0 var(--spacing-3) 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.score-display {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-3);
+}
+
+.player-score {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-1);
+    flex: 1;
+}
+
+.player-name {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100px;
+}
+
+.score-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--text-primary);
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--primary-blue-dark) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-align: center;
+    min-width: 30px;
+}
+
+.score-separator {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    color: var(--text-secondary);
+    opacity: 0.6;
+}
+
+/* Player color indicators for scoreboard */
+.player-score:first-child .player-name::before {
+    content: '🔴';
+    margin-right: var(--spacing-1);
+}
+
+.player-score:last-child .player-name::before {
+    content: '🟡';
+    margin-right: var(--spacing-1);
+}
+
+/* Scoreboard animations */
+.scoreboard {
+    opacity: 0;
+    transform: translateY(-10px);
+    animation: scoreboardFadeIn 0.5s ease-out forwards;
+}
+
+@keyframes scoreboardFadeIn {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.score-value {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.score-value.score-updated {
+    animation: scoreUpdate 0.6s ease-out;
+}
+
+@keyframes scoreUpdate {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); filter: brightness(1.2); }
+    100% { transform: scale(1); }
+}
+
+/* Responsive scoreboard design */
+@media (max-width: 576px) {
+    .scoreboard {
+        padding: var(--spacing-3);
+        margin: var(--spacing-3) 0;
+    }
+    
+    .scoreboard-title {
+        font-size: var(--font-size-base);
+    }
+    
+    .score-display {
+        gap: var(--spacing-2);
+    }
+    
+    .score-value {
+        font-size: var(--font-size-xl);
+    }
+    
+    .player-name {
+        font-size: var(--font-size-xs);
+        max-width: 80px;
+    }
+}
+
+@media (min-width: 768px) {
+    .scoreboard {
+        padding: var(--spacing-5);
+        margin: var(--spacing-5) 0;
+    }
+    
+    .score-display {
+        gap: var(--spacing-4);
+    }
+    
+    .player-name {
+        max-width: 120px;
+    }
+}
+
+/* Dark mode support for scoreboard */
+@media (prefers-color-scheme: dark) {
+    .scoreboard {
+        background: linear-gradient(135deg, var(--bg-primary) 0%, #334155 100%);
+        border-color: #475569;
+    }
+    
+    .scoreboard-title {
+        color: var(--primary-blue-light);
+    }
+    
+    .player-name {
+        color: #94a3b8;
+    }
+    
+    .score-value {
+        color: var(--text-light);
+        background: linear-gradient(135deg, var(--primary-blue-light) 0%, var(--primary-blue) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .score-separator {
+        color: #64748b;
+    }
+}
+
+/* High contrast mode support for scoreboard */
+@media (prefers-contrast: high) {
+    .scoreboard {
+        border-width: 3px;
+        background: var(--bg-primary);
+    }
+    
+    .score-value {
+        background: none;
+        -webkit-background-clip: unset;
+        -webkit-text-fill-color: unset;
+        background-clip: unset;
+        color: var(--text-primary);
+    }
+}

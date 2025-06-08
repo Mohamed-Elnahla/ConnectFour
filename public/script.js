@@ -41,14 +41,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const onlineControls = document.getElementById('online-controls');
     const rematchButton = document.getElementById('rematch-button');
     const reactionButtons = document.querySelectorAll('.reaction-btn');
-    const reactionOverlay = document.getElementById('reaction-overlay');
-
-    // Rematch Modal Elements
+    const reactionOverlay = document.getElementById('reaction-overlay');    // Rematch Modal Elements
     const rematchModal = document.getElementById('rematch-modal');
     const rematchTitle = document.getElementById('rematch-title');
     const rematchMessage = document.getElementById('rematch-message');
     const acceptRematchBtn = document.getElementById('accept-rematch-btn');
     const declineRematchBtn = document.getElementById('decline-rematch-btn');
+
+    // Scoreboard Elements
+    const scoreboard = document.getElementById('scoreboard');
+    const scorePlayer1Name = document.getElementById('score-player1-name');
+    const scorePlayer1Value = document.getElementById('score-player1');
+    const scorePlayer2Name = document.getElementById('score-player2-name');
+    const scorePlayer2Value = document.getElementById('score-player2');
 
     // --- Game Constants & State ---
     const ROWS = 6;
@@ -208,7 +213,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // Enable continue button
             continueColorBtn.disabled = false;
             
-            // Apply color immediately for preview            applyPlayerColor();
+            // Apply color immediately for preview (just show selected color for player 1 as preview)
+            if (gameMode === 'online') {
+                // During preview, just show the selected color as player 1
+                document.documentElement.style.setProperty('--player1-color', selectedPlayerColor.main);
+                document.documentElement.style.setProperty('--player1-light', selectedPlayerColor.light);
+            }
         });
     });
 
@@ -231,9 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Reset button state
         selectCreateButton.disabled = false;        selectCreateButton.classList.remove('btn-loading');
-    });
-
-    socket.on('gameStarted', (data) => {
+    });    socket.on('gameStarted', (data) => {
         if (!playerNumber) {
             playerNumber = 2;
         }
@@ -245,6 +253,11 @@ document.addEventListener('DOMContentLoaded', () => {
             playerNames = { 1: player1.name, 2: player2.name };
         } else {
             playerNames = { 1: player1.name, 2: player2.name };
+        }
+        
+        // Update scoreboard if scores are available
+        if (data.scores && data.players) {
+            updateScoreboard(data.scores, data.players);
         }
         
         // Apply selected color for online mode
@@ -265,11 +278,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     socket.on('rematchRequested', (data) => {        showRematchModal(data.playerName);
-    });
-
-    socket.on('rematchAccepted', (data) => {
+    });    socket.on('rematchAccepted', (data) => {
         hideRematchModal();
         hideRematchUI();
+        
+        // Update scoreboard if scores are available
+        if (data.scores && data.players) {
+            updateScoreboard(data.scores, data.players);
+        }
+        
         startGame(data.nextStarter || 1);
     });
 
@@ -351,15 +368,15 @@ document.addEventListener('DOMContentLoaded', () => {
         board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
         
         turnDisplay.classList.remove('game-over');
-        restartButton.classList.add('hidden');
-
-        // Show/hide appropriate controls based on game mode
+        restartButton.classList.add('hidden');        // Show/hide appropriate controls based on game mode
         if (gameMode === 'online') {
             onlineControls.classList.remove('hidden');
             rematchButton.classList.add('hidden');
+            showScoreboard();
         } else {
             onlineControls.classList.add('hidden');
-        }        createBoard();
+            hideScoreboard();
+        }createBoard();
         updateTurnDisplay();
     }
 
@@ -821,30 +838,95 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             showNotification('Failed to reconnect to the game. Please refresh the page.', 'error');
             clearReconnectionState();
-        }
-    });
+        }    });
     
     // --- Color Management Functions ---
     function applyPlayerColor() {
         // Only apply color in online mode and if a color is selected
-        if (gameMode === 'online' && selectedPlayerColor) {
-            // Determine which player color to override based on our player number
-            const colorVar = playerNumber === 1 ? '--player1-color' : '--player2-color';
-            const lightVar = playerNumber === 1 ? '--player1-light' : '--player2-light';
+        if (gameMode === 'online' && selectedPlayerColor && playerNumber) {
+            // Always apply the selected color to "my" pieces
+            const myColorVar = '--my-color';
+            const myLightVar = '--my-light';
             
-            // Apply the selected colors as CSS custom properties
-            document.documentElement.style.setProperty(colorVar, selectedPlayerColor.main);
-            document.documentElement.style.setProperty(lightVar, selectedPlayerColor.light);
+            // Determine opponent color (opposite of selected color)
+            let opponentColor = getOpponentColor(selectedPlayerColor);
+            const opponentColorVar = '--opponent-color';
+            const opponentLightVar = '--opponent-light';
+            
+            // Apply my color
+            document.documentElement.style.setProperty(myColorVar, selectedPlayerColor.main);
+            document.documentElement.style.setProperty(myLightVar, selectedPlayerColor.light);
+            
+            // Apply opponent color
+            document.documentElement.style.setProperty(opponentColorVar, opponentColor.main);
+            document.documentElement.style.setProperty(opponentLightVar, opponentColor.light);
+            
+            // Map my color and opponent color to actual player numbers
+            if (playerNumber === 1) {
+                // I am player 1, so my color goes to player 1, opponent color to player 2
+                document.documentElement.style.setProperty('--player1-color', selectedPlayerColor.main);
+                document.documentElement.style.setProperty('--player1-light', selectedPlayerColor.light);
+                document.documentElement.style.setProperty('--player2-color', opponentColor.main);
+                document.documentElement.style.setProperty('--player2-light', opponentColor.light);
+            } else {
+                // I am player 2, so my color goes to player 2, opponent color to player 1
+                document.documentElement.style.setProperty('--player1-color', opponentColor.main);
+                document.documentElement.style.setProperty('--player1-light', opponentColor.light);
+                document.documentElement.style.setProperty('--player2-color', selectedPlayerColor.main);
+                document.documentElement.style.setProperty('--player2-light', selectedPlayerColor.light);
+            }
         }
     }
-
-    function resetPlayerColors() {
+    
+    function getOpponentColor(myColor) {
+        // Define color pairs - if player selects one, opponent gets the other
+        const colorPairs = [
+            { 
+                colors: [
+                    { main: '#ef4444', light: '#f87171' }, // Red
+                    { main: '#eab308', light: '#facc15' }  // Yellow
+                ]
+            },
+            {
+                colors: [
+                    { main: '#3b82f6', light: '#60a5fa' }, // Blue
+                    { main: '#f97316', light: '#fb923c' }  // Orange
+                ]
+            },
+            {
+                colors: [
+                    { main: '#10b981', light: '#34d399' }, // Green
+                    { main: '#8b5cf6', light: '#a78bfa' }  // Purple
+                ]
+            }
+        ];
+        
+        // Find which pair contains the selected color and return the opposite
+        for (const pair of colorPairs) {
+            if (pair.colors[0].main === myColor.main) {
+                return pair.colors[1];
+            }
+            if (pair.colors[1].main === myColor.main) {
+                return pair.colors[0];
+            }
+        }
+        
+        // Default fallback - if no pair found, return a default opponent color
+        return myColor.main === '#ef4444' ? 
+            { main: '#eab308', light: '#facc15' } : // If red, return yellow
+            { main: '#ef4444', light: '#f87171' };   // Otherwise return red    }    function resetPlayerColors() {
         // Reset to default colors
         document.documentElement.style.removeProperty('--player1-color');
         document.documentElement.style.removeProperty('--player1-light');
         document.documentElement.style.removeProperty('--player2-color');
         document.documentElement.style.removeProperty('--player2-light');
-    }    // Initialize default color selection
+        document.documentElement.style.removeProperty('--my-color');
+        document.documentElement.style.removeProperty('--my-light');
+        document.documentElement.style.removeProperty('--opponent-color');
+        document.documentElement.style.removeProperty('--opponent-light');
+    }
+    
+    // Initialize default color selection
     function initializeColorSelection() {
         // Select the first color option (red) by default
         if (colorOptions.length > 0) {
@@ -859,4 +941,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Call the initialization function
     initializeColorSelection();
+
+    // --- Scoreboard System Functions ---
+    function showScoreboard() {
+        if (gameMode === 'online') {
+            scoreboard.classList.remove('hidden');
+        }
+    }
+
+    function hideScoreboard() {
+        scoreboard.classList.add('hidden');
+    }
+
+    function updateScoreboard(scores, players) {
+        if (!scores || !players) return;
+        
+        // Find player data
+        const player1 = players.find(p => p.playerNumber === 1);
+        const player2 = players.find(p => p.playerNumber === 2);
+        
+        if (player1 && player2) {
+            // Update player names
+            scorePlayer1Name.textContent = player1.name;
+            scorePlayer2Name.textContent = player2.name;
+            
+            // Store previous scores for animation
+            const prevScore1 = parseInt(scorePlayer1Value.textContent) || 0;
+            const prevScore2 = parseInt(scorePlayer2Value.textContent) || 0;
+            
+            // Update scores with animation if they changed
+            if (scores[1] !== prevScore1) {
+                scorePlayer1Value.textContent = scores[1];
+                scorePlayer1Value.classList.add('score-updated');
+                setTimeout(() => scorePlayer1Value.classList.remove('score-updated'), 600);
+            }
+            
+            if (scores[2] !== prevScore2) {
+                scorePlayer2Value.textContent = scores[2];
+                scorePlayer2Value.classList.add('score-updated');
+                setTimeout(() => scorePlayer2Value.classList.remove('score-updated'), 600);
+            }
+        }
+    }
 });
